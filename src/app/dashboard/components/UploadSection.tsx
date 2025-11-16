@@ -65,11 +65,11 @@ export default function UploadSection({ brokerId = 'broker-demo-001' }: UploadSe
       const previewData = successRecords.map((record: ProcessedRecord) => {
         if (!record.data) return []
         return [
-          record.data.instrument,
-          record.data.market,
-          record.data.period,
-          record.data.qualificationType,
-          record.data.amount.toString()
+          record.data.tipoInstrumento,
+          record.data.mercadoOrigen,
+          record.data.periodo,
+          record.data.tipoCalificacion || '',
+          `${record.data.monto.valor} ${record.data.monto.moneda}`
         ]
       })
 
@@ -77,7 +77,7 @@ export default function UploadSection({ brokerId = 'broker-demo-001' }: UploadSe
         fileName: file.name,
         size: file.size,
         rows: records.length,
-        columns: ['Instrumento', 'Mercado', 'Período', 'Tipo', 'Monto'],
+        columns: ['Tipo de Instrumento', 'Mercado de Origen', 'Período', 'Tipo de Calificación', 'Monto'],
         preview: previewData,
         summary: {
           added: toBeAdded,

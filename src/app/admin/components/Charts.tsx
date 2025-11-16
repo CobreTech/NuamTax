@@ -166,9 +166,9 @@ export default function Charts() {
         nextMonth.setMonth(nextMonth.getMonth() + 1);
         
         const qualQuery = query(
-          collection(db, 'taxQualifications'),
-          where('createdAt', '>=', Timestamp.fromDate(date)),
-          where('createdAt', '<', Timestamp.fromDate(nextMonth))
+          collection(db, 'calificaciones'),
+          where('fechaCreacion', '>=', Timestamp.fromDate(date)),
+          where('fechaCreacion', '<', Timestamp.fromDate(nextMonth))
         );
         
         const qualSnap = await getDocs(qualQuery);

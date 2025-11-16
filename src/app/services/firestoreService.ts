@@ -26,29 +26,55 @@ import { TaxQualification, ProcessedRecord, BulkUploadResult } from '../dashboar
 import { isDuplicateQualification } from './taxValidationService';
 
 // Nombre de la colección en Firestore (debe coincidir con las reglas de seguridad)
-const COLLECTION_NAME = 'taxQualifications';
+// Según documentación: colección "calificaciones"
+const COLLECTION_NAME = 'calificaciones';
 
 /**
  * Convierte un objeto TaxQualification a formato Firestore
+ * Mapea los campos según la documentación del diseño
  */
 function toFirestoreFormat(qualification: TaxQualification): any {
   return {
-    ...qualification,
-    createdAt: Timestamp.fromDate(qualification.createdAt),
-    updatedAt: Timestamp.fromDate(qualification.updatedAt),
+    usuarioId: qualification.usuarioId,
+    tipoInstrumento: qualification.tipoInstrumento,
+    mercadoOrigen: qualification.mercadoOrigen,
+    periodo: qualification.periodo,
+    esNoInscrita: qualification.esNoInscrita,
+    monto: {
+      valor: qualification.monto.valor,
+      moneda: qualification.monto.moneda || 'CLP',
+    },
+    factores: qualification.factores,
+    fechaCreacion: Timestamp.fromDate(qualification.fechaCreacion),
+    fechaUltimaModificacion: Timestamp.fromDate(qualification.fechaUltimaModificacion),
+    ...(qualification.tipoCalificacion && { tipoCalificacion: qualification.tipoCalificacion }),
   };
 }
 
 /**
  * Convierte un documento de Firestore a TaxQualification
+ * Mapea los campos según la documentación del diseño (SOLO nuevo formato)
  */
 function fromFirestoreFormat(doc: any): TaxQualification {
   const data = doc.data();
   return {
-    ...data,
     id: doc.id,
-    createdAt: data.createdAt?.toDate() || new Date(),
-    updatedAt: data.updatedAt?.toDate() || new Date(),
+    usuarioId: data.usuarioId || '',
+    tipoInstrumento: data.tipoInstrumento || '',
+    mercadoOrigen: data.mercadoOrigen || '',
+    periodo: data.periodo || '',
+    esNoInscrita: data.esNoInscrita !== undefined ? data.esNoInscrita : false,
+    monto: data.monto && typeof data.monto === 'object' 
+      ? { valor: data.monto.valor || 0, moneda: data.monto.moneda || 'CLP' }
+      : { valor: 0, moneda: 'CLP' },
+    factores: data.factores || {
+      factor8: 0, factor9: 0, factor10: 0, factor11: 0, factor12: 0,
+      factor13: 0, factor14: 0, factor15: 0, factor16: 0, factor17: 0,
+      factor18: 0, factor19: 0,
+    },
+    fechaCreacion: data.fechaCreacion?.toDate() || new Date(),
+    fechaUltimaModificacion: data.fechaUltimaModificacion?.toDate() || new Date(),
+    tipoCalificacion: data.tipoCalificacion || '',
   } as TaxQualification;
 }
 
@@ -56,7 +82,12 @@ function fromFirestoreFormat(doc: any): TaxQualification {
  * Genera un ID único para una calificación basado en sus datos
  */
 function generateQualificationId(qualification: Partial<TaxQualification>): string {
-  const normalized = `${qualification.brokerId}-${qualification.instrument}-${qualification.market}-${qualification.period}`
+  const usuarioId = qualification.usuarioId || '';
+  const tipoInstrumento = qualification.tipoInstrumento || '';
+  const mercadoOrigen = qualification.mercadoOrigen || '';
+  const periodo = qualification.periodo || '';
+  
+  const normalized = `${usuarioId}-${tipoInstrumento}-${mercadoOrigen}-${periodo}`
     .toLowerCase()
     .replace(/\s+/g, '-')
     .replace(/[^a-z0-9-]/g, '');
@@ -72,12 +103,17 @@ export async function findExistingQualification(
   qualification: Partial<TaxQualification>
 ): Promise<TaxQualification | null> {
   try {
+    const usuarioId = qualification.usuarioId || '';
+    const tipoInstrumento = qualification.tipoInstrumento || '';
+    const mercadoOrigen = qualification.mercadoOrigen || '';
+    const periodo = qualification.periodo || '';
+    
     const q = query(
       collection(db, COLLECTION_NAME),
-      where('brokerId', '==', qualification.brokerId),
-      where('instrument', '==', qualification.instrument),
-      where('market', '==', qualification.market),
-      where('period', '==', qualification.period),
+      where('usuarioId', '==', usuarioId),
+      where('tipoInstrumento', '==', tipoInstrumento),
+      where('mercadoOrigen', '==', mercadoOrigen),
+      where('periodo', '==', periodo),
       limit(1)
     );
 
@@ -124,11 +160,25 @@ export async function updateQualification(
   qualification: Partial<TaxQualification>
 ): Promise<void> {
   try {
-    const docRef = doc(db, COLLECTION_NAME, id);
-    const updateData = {
+    // Obtener la calificación existente para preservar campos como fechaCreacion
+    const existing = await getQualificationById(id);
+    if (!existing) {
+      throw new Error('Calificación no encontrada');
+    }
+
+    // Hacer merge con los datos existentes
+    const updatedQualification: TaxQualification = {
+      ...existing,
       ...qualification,
-      updatedAt: Timestamp.fromDate(new Date()),
+      fechaUltimaModificacion: new Date(),
+      // Asegurar que monto tenga la estructura correcta
+      monto: qualification.monto || existing.monto,
+      // Asegurar que factores estén completos
+      factores: qualification.factores || existing.factores,
     };
+
+    const docRef = doc(db, COLLECTION_NAME, id);
+    const updateData = toFirestoreFormat(updatedQualification);
     
     await setDoc(docRef, updateData, { merge: true });
   } catch (error) {
@@ -165,17 +215,43 @@ export async function getQualificationsByBrokerId(
   maxResults: number = 100
 ): Promise<TaxQualification[]> {
   try {
-    const q = query(
-      collection(db, COLLECTION_NAME),
-      where('brokerId', '==', brokerId),
-      orderBy('updatedAt', 'desc'),
-      limit(maxResults)
-    );
+    if (!brokerId) {
+      console.warn('[getQualificationsByBrokerId] brokerId vacío');
+      return [];
+    }
 
-    const querySnapshot = await getDocs(q);
-    return querySnapshot.docs.map(fromFirestoreFormat);
+    // Buscar solo por usuarioId (nuevo formato)
+    let results: TaxQualification[] = [];
+    
+    try {
+      const q = query(
+        collection(db, COLLECTION_NAME),
+        where('usuarioId', '==', brokerId),
+        orderBy('fechaUltimaModificacion', 'desc'),
+        limit(maxResults)
+      );
+      const querySnapshot = await getDocs(q);
+      results = querySnapshot.docs.map(fromFirestoreFormat);
+    } catch (error: any) {
+      // Si falla por falta de índice, intentar sin orderBy
+      if (error?.code === 'failed-precondition') {
+        const q = query(
+          collection(db, COLLECTION_NAME),
+          where('usuarioId', '==', brokerId),
+          limit(maxResults)
+        );
+        const querySnapshot = await getDocs(q);
+        results = querySnapshot.docs.map(fromFirestoreFormat);
+        // Ordenar manualmente
+        results.sort((a, b) => b.fechaUltimaModificacion.getTime() - a.fechaUltimaModificacion.getTime());
+      } else {
+        throw error;
+      }
+    }
+
+    return results;
   } catch (error) {
-    console.error('Error obteniendo calificaciones:', error);
+    console.error('[getQualificationsByBrokerId] Error obteniendo calificaciones:', error);
     return [];
   }
 }
@@ -213,7 +289,7 @@ export async function processBulkUpload(
     
     const existingQuery = query(
       collection(db, COLLECTION_NAME),
-      where('brokerId', '==', brokerId)
+      where('usuarioId', '==', brokerId)
     );
     const existingSnapshot = await getDocs(existingQuery);
     
@@ -221,7 +297,7 @@ export async function processBulkUpload(
     const existingMap = new Map<string, TaxQualification>();
     existingSnapshot.docs.forEach(doc => {
       const data = fromFirestoreFormat(doc);
-      const key = `${data.instrument}-${data.market}-${data.period}`.toLowerCase();
+      const key = `${data.tipoInstrumento}-${data.mercadoOrigen}-${data.periodo}`.toLowerCase();
       existingMap.set(key, data);
     });
     console.log(`✅ ${existingMap.size} registros existentes cargados en memoria`);
@@ -245,7 +321,7 @@ export async function processBulkUpload(
       }
 
       // Buscar duplicado en memoria (O(1))
-      const key = `${record.data.instrument}-${record.data.market}-${record.data.period}`.toLowerCase();
+      const key = `${record.data.tipoInstrumento}-${record.data.mercadoOrigen}-${record.data.periodo}`.toLowerCase();
       const existing = existingMap.get(key);
       
       if (existing) {
@@ -255,30 +331,30 @@ export async function processBulkUpload(
         record.status = 'updated';
         
         const docRef = doc(db, COLLECTION_NAME, existing.id);
-        const updatedData = {
+        const updatedData: TaxQualification = {
           ...record.data,
           id: existing.id,
-          createdAt: existing.createdAt,
-          updatedAt: new Date(),
+          fechaCreacion: existing.fechaCreacion,
+          fechaUltimaModificacion: new Date(),
         };
         
-        currentBatch.set(docRef, toFirestoreFormat(updatedData as TaxQualification));
+        currentBatch.set(docRef, toFirestoreFormat(updatedData));
         operationsInBatch++;
         updated++;
         successRecords.push(record);
       } else {
         // Registro nuevo - crear
         const id = generateQualificationId(record.data);
-        const newData = {
+        const newData: TaxQualification = {
           ...record.data,
           id,
-          brokerId,
-          createdAt: new Date(),
-          updatedAt: new Date(),
+          usuarioId: brokerId,
+          fechaCreacion: new Date(),
+          fechaUltimaModificacion: new Date(),
         };
         
         const docRef = doc(db, COLLECTION_NAME, id);
-        currentBatch.set(docRef, toFirestoreFormat(newData as TaxQualification));
+        currentBatch.set(docRef, toFirestoreFormat(newData));
         operationsInBatch++;
         added++;
         successRecords.push(record);
@@ -359,21 +435,21 @@ export async function searchQualifications(
   try {
     let q = query(
       collection(db, COLLECTION_NAME),
-      where('brokerId', '==', brokerId)
+      where('usuarioId', '==', brokerId)
     );
 
     // Aplicar filtros adicionales
     if (filters.instrument) {
-      q = query(q, where('instrument', '==', filters.instrument));
+      q = query(q, where('tipoInstrumento', '==', filters.instrument));
     }
     if (filters.market) {
-      q = query(q, where('market', '==', filters.market));
+      q = query(q, where('mercadoOrigen', '==', filters.market));
     }
     if (filters.period) {
-      q = query(q, where('period', '==', filters.period));
+      q = query(q, where('periodo', '==', filters.period));
     }
     if (filters.qualificationType) {
-      q = query(q, where('qualificationType', '==', filters.qualificationType));
+      q = query(q, where('tipoCalificacion', '==', filters.qualificationType));
     }
 
     const querySnapshot = await getDocs(q);
@@ -381,10 +457,10 @@ export async function searchQualifications(
 
     // Filtrar por rango de montos (cliente-side porque Firestore no soporta range queries con múltiples campos)
     if (filters.minAmount !== undefined) {
-      results = results.filter(q => q.amount >= filters.minAmount!);
+      results = results.filter(q => q.monto.valor >= filters.minAmount!);
     }
     if (filters.maxAmount !== undefined) {
-      results = results.filter(q => q.amount <= filters.maxAmount!);
+      results = results.filter(q => q.monto.valor <= filters.maxAmount!);
     }
 
     return results;
@@ -423,7 +499,7 @@ export async function getBrokerStats(brokerId: string): Promise<BrokerStats> {
   try {
     const q = query(
       collection(db, COLLECTION_NAME),
-      where('brokerId', '==', brokerId)
+      where('usuarioId', '==', brokerId)
     );
 
     const querySnapshot = await getDocs(q);
@@ -434,7 +510,7 @@ export async function getBrokerStats(brokerId: string): Promise<BrokerStats> {
     // Contar factores validados (suma <= 1)
     let validatedFactors = 0;
     qualifications.forEach(qual => {
-      const sum = Object.values(qual.factors).reduce((acc, val) => acc + val, 0);
+      const sum = Object.values(qual.factores).reduce((acc, val) => acc + val, 0);
       if (sum <= 1) validatedFactors++;
     });
     

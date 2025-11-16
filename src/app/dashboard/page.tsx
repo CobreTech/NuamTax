@@ -33,15 +33,16 @@ import { Qualification, RecentActivity, FilePreview, MenuItem, ActiveTab } from 
 
 // Importar funciones para obtener datos reales
 import { getBrokerStats, type BrokerStats } from '../services/firestoreService'
+import { useAuth } from '../context/AuthContext'
 
 // Componente principal del Dashboard.
 export default function Dashboard() {
   const router = useRouter() // Hook para manejar el enrutamiento.
+  const { userProfile } = useAuth() // Obtener perfil del usuario autenticado
 
   // --- ESTADOS DEL COMPONENTE ---
   const [activeTab, setActiveTab] = useState<ActiveTab>('overview') // Pestaña activa en la navegación.
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false) // Controla la visibilidad del menú en móviles.
-  const [searchTerm, setSearchTerm] = useState('') // Término de búsqueda para las calificaciones.
   
   // Estados para la sección de configuración.
   const [dateFormat, setDateFormat] = useState('DD/MM/AAAA') // Formato de fecha preferido.
@@ -59,9 +60,11 @@ export default function Dashboard() {
 
   // Cargar estadísticas reales al montar el componente
   useEffect(() => {
+    if (!userProfile?.uid) return;
+
     const loadStats = async () => {
       try {
-        const stats = await getBrokerStats('broker-demo-001')
+        const stats = await getBrokerStats(userProfile.uid)
         setBrokerStats(stats)
       } catch (error) {
         console.error('Error cargando estadísticas:', error)
@@ -83,7 +86,7 @@ export default function Dashboard() {
     return () => {
       window.removeEventListener('reloadBrokerStats', handleReloadStats)
     }
-  }, [])
+  }, [userProfile?.uid])
 
   // Define los elementos del menú de navegación.
   const menuItems: MenuItem[] = [
@@ -99,11 +102,11 @@ export default function Dashboard() {
 
   // Datos de ejemplo para la tabla de calificaciones.
   const mockQualifications: Qualification[] = [
-    { id: 'CL0001', instrument: 'Acción NUAM', market: 'BVC', period: '2024-Q1', factors: 'F8-F12', amount: '$12,500', lastUpdate: '2024-01-15' },
-    { id: 'CL0002', instrument: 'Bono Corp A', market: 'BVC', period: '2024-Q1', factors: 'F10-F15', amount: '$45,000', lastUpdate: '2024-01-14' },
-    { id: 'CL0003', instrument: 'ETF Regional', market: 'COLCAP', period: '2024-Q1', factors: 'F8-F19', amount: '$8,900', lastUpdate: '2024-01-13' },
-    { id: 'CL0004', instrument: 'Acción BVC', market: 'BVC', period: '2024-Q1', factors: 'F12-F16', amount: '$23,400', lastUpdate: '2024-01-12' },
-    { id: 'CL0005', instrument: 'Fondo Pensional', market: 'COLCAP', period: '2024-Q1', factors: 'F9-F14', amount: '$67,800', lastUpdate: '2024-01-11' }
+    { id: 'CL0001', tipoInstrumento: 'Acción NUAM', mercadoOrigen: 'BVC', periodo: '2024-Q1', factors: 'F8-F12', amount: '$12,500', lastUpdate: '2024-01-15' },
+    { id: 'CL0002', tipoInstrumento: 'Bono Corp A', mercadoOrigen: 'BVC', periodo: '2024-Q1', factors: 'F10-F15', amount: '$45,000', lastUpdate: '2024-01-14' },
+    { id: 'CL0003', tipoInstrumento: 'ETF Regional', mercadoOrigen: 'COLCAP', periodo: '2024-Q1', factors: 'F8-F19', amount: '$8,900', lastUpdate: '2024-01-13' },
+    { id: 'CL0004', tipoInstrumento: 'Acción BVC', mercadoOrigen: 'BVC', periodo: '2024-Q1', factors: 'F12-F16', amount: '$23,400', lastUpdate: '2024-01-12' },
+    { id: 'CL0005', tipoInstrumento: 'Fondo Pensional', mercadoOrigen: 'COLCAP', periodo: '2024-Q1', factors: 'F9-F14', amount: '$67,800', lastUpdate: '2024-01-11' }
   ]
 
   // Datos de ejemplo para la sección de actividad reciente.
@@ -114,12 +117,7 @@ export default function Dashboard() {
     { id: 4, action: 'Actualización de montos', time: 'Hace 2 días', status: 'success' }
   ]
 
-  // --- LÓGICA DE FILTRADO ---
-  // Filtra las calificaciones basadas en el término de búsqueda.
-  const filteredQualifications = mockQualifications.filter(qual =>
-    qual.instrument.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    qual.market.toLowerCase().includes(searchTerm.toLowerCase())
-  )
+  // Nota: El filtrado ahora se maneja dentro de QualificationsSection
 
   // --- RENDERIZADO CONDICIONAL ---
   // Función que decide qué componente de sección mostrar según la pestaña activa.
@@ -136,9 +134,7 @@ export default function Dashboard() {
       case 'qualifications':
         return (
           <QualificationsSection 
-            filteredQualifications={filteredQualifications}
-            searchTerm={searchTerm}
-            setSearchTerm={setSearchTerm}
+            brokerId={userProfile?.uid || ''}
             setActiveTab={setActiveTab}
             pageSize={pageSize}
           />
@@ -146,7 +142,7 @@ export default function Dashboard() {
       case 'upload':
         return (
           <UploadSection 
-            brokerId="broker-demo-001"
+            brokerId={userProfile?.uid || ''}
           />
         )
       case 'reports':

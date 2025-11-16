@@ -91,7 +91,7 @@ export default function OverviewSection({
               <thead>
                 <tr className="border-b border-white/10">
                   <th className="text-left py-2 lg:py-3 px-2 lg:px-4 text-sm lg:text-base">ID</th>
-                  <th className="text-left py-2 lg:py-3 px-2 lg:px-4 text-sm lg:text-base">Instrumento</th>
+                  <th className="text-left py-2 lg:py-3 px-2 lg:px-4 text-sm lg:text-base">Tipo de Instrumento</th>
                   <th className="text-left py-2 lg:py-3 px-2 lg:px-4 text-sm lg:text-base">Factor</th>
                   <th className="text-left py-2 lg:py-3 px-2 lg:px-4 text-sm lg:text-base">Monto</th>
                   <th className="text-left py-2 lg:py-3 px-2 lg:px-4 text-sm lg:text-base">Estado</th>
@@ -102,7 +102,7 @@ export default function OverviewSection({
                 {mockQualifications.slice(0, 4).map((row, i) => (
                   <tr key={i} className="border-b border-white/5 hover:bg-white/5">
                     <td className="py-2 lg:py-3 px-2 lg:px-4 text-sm lg:text-base">{row.id}</td>
-                    <td className="py-2 lg:py-3 px-2 lg:px-4 text-sm lg:text-base">{row.instrument}</td>
+                    <td className="py-2 lg:py-3 px-2 lg:px-4 text-sm lg:text-base">{row.tipoInstrumento}</td>
                     <td className="py-2 lg:py-3 px-2 lg:px-4 text-sm lg:text-base">{row.factors}</td>
                     <td className="py-2 lg:py-3 px-2 lg:px-4 text-sm lg:text-base">{row.amount}</td>
                     <td className="py-2 lg:py-3 px-2 lg:px-4">

@@ -13,9 +13,18 @@ import { TaxFactors, TaxQualification, ValidationError } from '../dashboard/comp
  */
 export function validateFactorsSum(factors: TaxFactors): { isValid: boolean; sum: number; error?: string } {
   const sum = 
-    factors.f8 + factors.f9 + factors.f10 + factors.f11 + 
-    factors.f12 + factors.f13 + factors.f14 + factors.f15 + 
-    factors.f16 + factors.f17 + factors.f18 + factors.f19;
+    (factors.factor8 || 0) + 
+    (factors.factor9 || 0) + 
+    (factors.factor10 || 0) + 
+    (factors.factor11 || 0) + 
+    (factors.factor12 || 0) + 
+    (factors.factor13 || 0) + 
+    (factors.factor14 || 0) + 
+    (factors.factor15 || 0) + 
+    (factors.factor16 || 0) + 
+    (factors.factor17 || 0) + 
+    (factors.factor18 || 0) + 
+    (factors.factor19 || 0);
 
   const isValid = sum <= 1;
 
@@ -37,80 +46,78 @@ export function validateTaxQualification(
   const errors: ValidationError[] = [];
 
   // Validar campos requeridos
-  if (!data.instrument || data.instrument.trim() === '') {
+  const tipoInstrumento = data.tipoInstrumento || '';
+  const mercadoOrigen = data.mercadoOrigen || '';
+  const periodo = data.periodo || '';
+  const tipoCalificacion = data.tipoCalificacion || '';
+
+  if (!tipoInstrumento || tipoInstrumento.trim() === '') {
     errors.push({
       row: rowNumber,
-      field: 'instrument',
-      value: data.instrument,
-      message: 'El campo instrumento es requerido',
+      field: 'tipoInstrumento',
+      value: tipoInstrumento,
+      message: 'El campo tipo de instrumento es requerido',
       errorType: 'validation'
     });
   }
 
-  if (!data.market || data.market.trim() === '') {
+  if (!mercadoOrigen || mercadoOrigen.trim() === '') {
     errors.push({
       row: rowNumber,
-      field: 'market',
-      value: data.market,
-      message: 'El campo mercado es requerido',
+      field: 'mercadoOrigen',
+      value: mercadoOrigen,
+      message: 'El campo mercado de origen es requerido',
       errorType: 'validation'
     });
   }
 
-  if (!data.period || data.period.trim() === '') {
+  if (!periodo || periodo.trim() === '') {
     errors.push({
       row: rowNumber,
-      field: 'period',
-      value: data.period,
+      field: 'periodo',
+      value: periodo,
       message: 'El campo período es requerido',
       errorType: 'validation'
     });
   }
 
-  if (!data.qualificationType || data.qualificationType.trim() === '') {
-    errors.push({
-      row: rowNumber,
-      field: 'qualificationType',
-      value: data.qualificationType,
-      message: 'El campo tipo de calificación es requerido',
-      errorType: 'validation'
-    });
-  }
-
   // Validar monto
-  if (data.amount === undefined || data.amount === null) {
+  const montoValor = data.monto?.valor;
+  if (montoValor === undefined || montoValor === null) {
     errors.push({
       row: rowNumber,
-      field: 'amount',
-      value: data.amount,
+      field: 'monto',
+      value: montoValor,
       message: 'El campo monto es requerido',
       errorType: 'validation'
     });
-  } else if (data.amount < 0) {
+  } else if (montoValor < 0) {
     errors.push({
       row: rowNumber,
-      field: 'amount',
-      value: data.amount,
+      field: 'monto',
+      value: montoValor,
       message: 'El monto no puede ser negativo',
       errorType: 'validation'
     });
   }
 
   // Validar factores
-  if (!data.factors) {
+  const factores = data.factores;
+  if (!factores) {
     errors.push({
       row: rowNumber,
-      field: 'factors',
-      value: data.factors,
+      field: 'factores',
+      value: factores,
       message: 'Los factores tributarios son requeridos',
       errorType: 'validation'
     });
   } else {
     // Validar cada factor individualmente
-    const factorKeys = ['f8', 'f9', 'f10', 'f11', 'f12', 'f13', 'f14', 'f15', 'f16', 'f17', 'f18', 'f19'];
+    const factorKeys = ['factor8', 'factor9', 'factor10', 'factor11', 'factor12', 'factor13', 
+                        'factor14', 'factor15', 'factor16', 'factor17', 'factor18', 'factor19'];
     
     for (const key of factorKeys) {
-      const value = data.factors[key as keyof TaxFactors];
+      const value = factores[key as keyof TaxFactors];
       
       if (value === undefined || value === null) {
         errors.push({
@@ -141,11 +148,11 @@ export function validateTaxQualification(
 
     // RF-03: Validar suma de factores
     if (errors.length === 0 || !errors.some(e => factorKeys.includes(e.field))) {
-      const validation = validateFactorsSum(data.factors);
+      const validation = validateFactorsSum(factores);
       if (!validation.isValid) {
         errors.push({
           row: rowNumber,
-          field: 'factors',
+          field: 'factores',
           value: validation.sum,
           message: validation.error || 'La suma de factores supera el 100%',
           errorType: 'factorSum'
@@ -175,12 +182,15 @@ export function validatePeriodFormat(period: string): boolean {
 export function sanitizeData(data: any): Partial<TaxQualification> {
   return {
     ...data,
-    instrument: typeof data.instrument === 'string' ? data.instrument.trim() : '',
-    market: typeof data.market === 'string' ? data.market.trim() : '',
-    period: typeof data.period === 'string' ? data.period.trim() : '',
-    qualificationType: typeof data.qualificationType === 'string' ? data.qualificationType.trim() : '',
-    amount: typeof data.amount === 'number' ? data.amount : parseFloat(data.amount) || 0,
-    isOfficial: data.isOfficial === true || data.isOfficial === 'true',
+    tipoInstrumento: typeof data.tipoInstrumento === 'string' ? data.tipoInstrumento.trim() : '',
+    mercadoOrigen: typeof data.mercadoOrigen === 'string' ? data.mercadoOrigen.trim() : '',
+    periodo: typeof data.periodo === 'string' ? data.periodo.trim() : '',
+    tipoCalificacion: typeof data.tipoCalificacion === 'string' ? data.tipoCalificacion.trim() : '',
+    monto: {
+      valor: typeof data.monto?.valor === 'number' ? data.monto.valor : parseFloat(data.monto?.valor) || 0,
+      moneda: typeof data.monto?.moneda === 'string' ? data.monto.moneda.trim().toUpperCase() : 'CLP',
+    },
+    esNoInscrita: data.esNoInscrita !== undefined ? data.esNoInscrita : false,
   };
 }
 
@@ -193,9 +203,9 @@ export function isDuplicateQualification(
   qualification2: Partial<TaxQualification>
 ): boolean {
   return (
-    qualification1.instrument === qualification2.instrument &&
-    qualification1.market === qualification2.market &&
-    qualification1.period === qualification2.period &&
-    qualification1.brokerId === qualification2.brokerId
+    qualification1.tipoInstrumento === qualification2.tipoInstrumento &&
+    qualification1.mercadoOrigen === qualification2.mercadoOrigen &&
+    qualification1.periodo === qualification2.periodo &&
+    qualification1.usuarioId === qualification2.usuarioId
   );
 }

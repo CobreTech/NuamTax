@@ -5,44 +5,53 @@
  */
 
 // Define la estructura de factores tributarios (F8-F19)
+// Según documentación: factores con nombres factor8, factor9, etc.
 export interface TaxFactors {
-  f8: number;   // Factor 8 (0-1)
-  f9: number;   // Factor 9 (0-1)
-  f10: number;  // Factor 10 (0-1)
-  f11: number;  // Factor 11 (0-1)
-  f12: number;  // Factor 12 (0-1)
-  f13: number;  // Factor 13 (0-1)
-  f14: number;  // Factor 14 (0-1)
-  f15: number;  // Factor 15 (0-1)
-  f16: number;  // Factor 16 (0-1)
-  f17: number;  // Factor 17 (0-1)
-  f18: number;  // Factor 18 (0-1)
-  f19: number;  // Factor 19 (0-1)
+  factor8: number;   // Factor 8 (0-1)
+  factor9: number;   // Factor 9 (0-1)
+  factor10: number;  // Factor 10 (0-1)
+  factor11: number;  // Factor 11 (0-1)
+  factor12: number;  // Factor 12 (0-1)
+  factor13: number;  // Factor 13 (0-1)
+  factor14: number;  // Factor 14 (0-1)
+  factor15: number;  // Factor 15 (0-1)
+  factor16: number;  // Factor 16 (0-1)
+  factor17: number;  // Factor 17 (0-1)
+  factor18: number;  // Factor 18 (0-1)
+  factor19: number;  // Factor 19 (0-1)
+}
+
+// Define la estructura del monto según documentación
+export interface Monto {
+  valor: number;    // Valor numérico de la calificación
+  moneda: string;   // Código de la divisa (ej. "CLP")
 }
 
 // Define la estructura de un objeto de Calificación Tributaria con factores detallados.
+// Alineado con la documentación del diseño (contexto2.md - Tabla 7)
 export interface TaxQualification {
   id: string;                    // Identificador único de la calificación.
-  brokerId: string;              // ID del corredor propietario (segregación).
-  instrument: string;            // Nombre del instrumento financiero.
-  market: string;                // Mercado al que pertenece (ej. BVC, COLCAP).
-  period: string;                // Período fiscal al que aplica (ej. 2024-Q1).
-  qualificationType: string;     // Tipo de calificación (ej. Dividendos, Intereses).
-  factors: TaxFactors;           // Factores tributarios F8-F19.
-  amount: number;                // Monto asociado a la calificación.
-  createdAt: Date;               // Fecha de creación.
-  updatedAt: Date;               // Fecha de última actualización.
-  isOfficial: boolean;           // Si está inscrita oficialmente o es local.
+  usuarioId: string;             // UID del corredor propietario (segregación) - antes brokerId
+  tipoInstrumento: string;       // Tipo de instrumento financiero - antes instrument
+  mercadoOrigen: string;          // Mercado de valores del instrumento - antes market
+  periodo: string;                // Período tributario de la calificación (ej. 2024-12-31)
+  esNoInscrita: boolean;         // Indica si corresponde a un valor no inscrito - antes isOfficial
+  monto: Monto;                   // Objeto que agrupa el valor monetario y la divisa - antes amount
+  factores: TaxFactors;           // Factores tributarios F8-F19
+  fechaCreacion: Date;           // Fecha y hora de creación del registro - antes createdAt
+  fechaUltimaModificacion: Date;  // Fecha y hora de última actualización - antes updatedAt
+  // Campo adicional para compatibilidad con UI (tipo de calificación)
+  tipoCalificacion?: string;      // Tipo de calificación (ej. Dividendos, Intereses) - opcional
 }
 
 // Define la estructura de un objeto de Calificación Tributaria (versión simplificada para UI).
 export interface Qualification {
   id: string;          // Identificador único de la calificación.
-  instrument: string;  // Nombre del instrumento financiero.
-  market: string;      // Mercado al que pertenece (ej. BVC, COLCAP).
-  period: string;      // Período fiscal al que aplica (ej. 2024-Q1).
+  tipoInstrumento: string;  // Tipo de instrumento financiero.
+  mercadoOrigen: string;      // Mercado de valores del instrumento.
+  periodo: string;      // Período tributario de la calificación.
   factors: string;     // Rango de factores aplicados (ej. F8-F12).
-  amount: string;      // Monto asociado a la calificación.
+  amount: string;      // Monto asociado a la calificación (formateado).
   lastUpdate: string;  // Fecha de la última actualización.
 }
 

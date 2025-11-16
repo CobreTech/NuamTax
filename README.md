@@ -1,9 +1,16 @@
 # Prototipo de Intranet NUAM para Corredores
 
-**ACTUALIZACIÓN:** Sistema **100% funcional** con:
+**ACTUALIZACIÓN:** Sistema **100% COMPLETO** con todas las funcionalidades implementadas:
 - ✅ **Autenticación completa** con Firebase Auth (registro, login, recuperación de contraseña)
+- ✅ **RBAC estricto** con control de acceso por roles
 - ✅ **Carga masiva optimizada** con validación, procesamiento CSV/Excel y Firestore
 - ✅ **Dashboard con estadísticas en tiempo real** desde Firestore
+- ✅ **Edición de calificaciones** con validación en tiempo real
+- ✅ **Filtros avanzados** funcionales (mercado, período, monto)
+- ✅ **Exportación de datos** a CSV y Excel
+- ✅ **Persistencia de configuración** del usuario en Firestore
+- ✅ **Auditoría automática** de todas las operaciones
+- ✅ **UI profesional** con React Icons y diseño responsive
 
 Este proyecto es un prototipo funcional de la intranet NUAM (holding regional de bolsas de Santiago, Lima y Colombia) que implementa autenticación, gestión de usuarios y carga masiva de calificaciones tributarias con backend completo en Firebase.
 
@@ -38,10 +45,11 @@ El proyecto sigue la estructura estándar de una aplicación Next.js con el App 
         ├── dashboard/                # Panel principal de la aplicación
         │   ├── components/           # Componentes del dashboard
         │   │   ├── OverviewSection.tsx
-        │   │   ├── QualificationsSection.tsx
+        │   │   ├── QualificationsSection.tsx # Gestión completa de calificaciones
+        │   │   ├── EditQualificationModal.tsx # Modal de edición
         │   │   ├── UploadSection.tsx # Módulo de carga masiva (100% funcional)
         │   │   ├── ReportsSection.tsx
-        │   │   ├── SettingsSection.tsx
+        │   │   ├── SettingsSection.tsx # Configuración persistente
         │   │   └── types.ts          # Definiciones de tipos TypeScript
         │   ├── layout.tsx            # Layout del dashboard
         │   └── page.tsx              # Página principal del dashboard
@@ -52,7 +60,10 @@ El proyecto sigue la estructura estándar de una aplicación Next.js con el App 
         ├── services/                 # Servicios de backend
         │   ├── firestoreService.ts   # CRUD y carga masiva optimizada
         │   ├── fileProcessingService.ts # Procesamiento CSV/Excel
-        │   └── validationService.ts  # Validación de datos tributarios
+        │   ├── taxValidationService.ts # Validación de datos tributarios
+        │   ├── exportService.ts       # Exportación a CSV/Excel
+        │   ├── configService.ts      # Persistencia de configuración
+        │   └── auditService.ts       # Servicio de auditoría
         ├── utils/                    # Utilidades
         │   └── paths.ts              # Rutas de assets
         ├── globals.css               # Estilos globales
@@ -165,16 +176,74 @@ Dashboard principal con datos en tiempo real desde Firestore:
 
 ---
 
+#### **Gestión de Calificaciones** - 100% Funcional ✅
+
+Módulo completo para gestionar calificaciones tributarias:
+
+**Características Implementadas:**
+- ✅ **RF-05**: Ingreso y modificación manual de calificaciones
+- ✅ **RF-06**: Búsqueda y filtrado avanzado funcional
+- ✅ **RF-07**: Exportación de calificaciones a CSV y Excel
+- ✅ **Carga de datos reales** desde Firestore
+- ✅ **Edición inline** con modal completo y validación en tiempo real
+- ✅ **Filtros combinables** por mercado, período, rango de montos
+- ✅ **Búsqueda inteligente** por instrumento, mercado, período o tipo
+- ✅ **Paginación funcional** con navegación entre páginas
+- ✅ **Vista responsive** adaptada a móviles y escritorio
+- ✅ **Validación de factores** (suma F8-F19 ≤ 100%) en tiempo real
+
+**Funcionalidades de Edición:**
+- Modal completo con todos los campos editables
+- Validación de factores en tiempo real con indicador visual
+- Actualización automática de la lista después de guardar
+- Manejo de errores con mensajes claros
+
+**Funcionalidades de Filtrado:**
+- Filtro por mercado (BVC, COLCAP, etc.)
+- Filtro por período fiscal
+- Filtro por rango de montos (mínimo y máximo)
+- Búsqueda de texto libre
+- Limpieza rápida de todos los filtros
+- Contador de resultados filtrados
+
+**Funcionalidades de Exportación:**
+- Exportar a CSV con formato UTF-8 (BOM para Excel)
+- Exportar a Excel (XLSX) con formato profesional
+- Incluye todos los campos y factores tributarios
+- Nombre de archivo con fecha automática
+
+---
+
+#### **Configuración Persistente** - 100% Funcional ✅
+
+Sistema de configuración del usuario con persistencia en Firestore:
+
+**Características Implementadas:**
+- ✅ **Persistencia en Firestore** en colección `userConfigs`
+- ✅ **Carga automática** de configuración al iniciar sesión
+- ✅ **Guardado manual** con feedback visual
+- ✅ **Configuraciones disponibles:**
+  - Formato de fecha (DD/MM/AAAA, AAAA-MM-DD, MM/DD/AAAA)
+  - Separador decimal (coma o punto)
+  - Tamaño de página para tablas (10, 25, 50, 100)
+  - Notificaciones (activar/desactivar)
+  - Guardado automático (activar/desactivar)
+
+**Flujo de Usuario:**
+1. Usuario configura sus preferencias
+2. Al hacer clic en "Guardar", se persiste en Firestore
+3. La configuración se carga automáticamente en sesiones futuras
+4. Feedback visual de éxito/error al guardar
+
+---
+
 ### 🟡 Funcionalidades de Maqueta (Solo UI)
 
-El resto del prototipo incluye las siguientes vistas a nivel de interfaz:
+Las siguientes vistas están implementadas a nivel de interfaz:
 
 - **Landing Page**: Página de presentación del sistema.
-- **Dashboard**:
-    - **Resumen General**: Vista principal con accesos rápidos y actividad reciente.
-    - **Calificaciones**: Visualización de datos de ejemplo con búsqueda y paginación.
-    - **Reportes**: Selección de tipos de reportes con filtros.
-    - **Configuración**: Opciones para personalizar la experiencia del usuario.
+- **Dashboard - Resumen General**: Vista principal con accesos rápidos y actividad reciente.
+- **Dashboard - Reportes**: Selección de tipos de reportes con filtros (pendiente de implementación completa).
 
 ---
 *CobreTech, cualquier uso sin los debidos créditos a los propietarios del prototipo es ilegal.*

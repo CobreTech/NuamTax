@@ -72,32 +72,42 @@ function rowToTaxQualification(row: FileRow, brokerId: string): Partial<TaxQuali
     return 0;
   };
 
-  const factors: TaxFactors = {
-    f8: parseNumber(row.f8),
-    f9: parseNumber(row.f9),
-    f10: parseNumber(row.f10),
-    f11: parseNumber(row.f11),
-    f12: parseNumber(row.f12),
-    f13: parseNumber(row.f13),
-    f14: parseNumber(row.f14),
-    f15: parseNumber(row.f15),
-    f16: parseNumber(row.f16),
-    f17: parseNumber(row.f17),
-    f18: parseNumber(row.f18),
-    f19: parseNumber(row.f19),
+  // Mapear factores según nueva estructura (factor8, factor9, ...)
+  const factores: TaxFactors = {
+    factor8: parseNumber(row.f8 || row.factor8),
+    factor9: parseNumber(row.f9 || row.factor9),
+    factor10: parseNumber(row.f10 || row.factor10),
+    factor11: parseNumber(row.f11 || row.factor11),
+    factor12: parseNumber(row.f12 || row.factor12),
+    factor13: parseNumber(row.f13 || row.factor13),
+    factor14: parseNumber(row.f14 || row.factor14),
+    factor15: parseNumber(row.f15 || row.factor15),
+    factor16: parseNumber(row.f16 || row.factor16),
+    factor17: parseNumber(row.f17 || row.factor17),
+    factor18: parseNumber(row.f18 || row.factor18),
+    factor19: parseNumber(row.f19 || row.factor19),
   };
 
+  // Obtener monto y moneda (por defecto CLP)
+  const montoValor = parseNumber(row.monto || row.valor);
+  const moneda = String(row.moneda || 'CLP').trim().toUpperCase();
+
   return {
-    brokerId,
-    instrument: String(row.instrumento || '').trim(),
-    market: String(row.mercado || '').trim(),
-    period: String(row.periodo || '').trim(),
-    qualificationType: String(row.tipo_calificacion || '').trim(),
-    factors,
-    amount: parseNumber(row.monto),
-    isOfficial: row.es_oficial === 'true' || row.es_oficial === true || row.es_oficial === '1',
-    createdAt: new Date(),
-    updatedAt: new Date(),
+    usuarioId: brokerId,
+    tipoInstrumento: String(row.instrumento || row.tipoInstrumento || '').trim(),
+    mercadoOrigen: String(row.mercado || row.mercadoOrigen || '').trim(),
+    periodo: String(row.periodo || '').trim(),
+    tipoCalificacion: String(row.tipo_calificacion || row.tipoCalificacion || '').trim(),
+    factores,
+    monto: {
+      valor: montoValor,
+      moneda: moneda,
+    },
+    esNoInscrita: row.es_no_inscrita === 'true' || row.es_no_inscrita === true || row.es_no_inscrita === '1' || 
+                  row.esNoInscrita === true || row.esNoInscrita === 'true' ||
+                  (row.es_oficial === 'false' || row.es_oficial === false),
+    fechaCreacion: new Date(),
+    fechaUltimaModificacion: new Date(),
   };
 }
 

@@ -115,7 +115,7 @@ export default function SystemStats() {
       const activeUsers = Math.floor(totalUsers * 0.75);
 
       // Cargar total de calificaciones (sin acceso al detalle)
-      const qualificationsSnap = await getDocs(collection(db, 'taxQualifications'));
+      const qualificationsSnap = await getDocs(collection(db, 'calificaciones'));
       const totalQualifications = qualificationsSnap.size;
 
       // Calificaciones este mes
@@ -124,8 +124,8 @@ export default function SystemStats() {
       firstDayOfMonth.setHours(0, 0, 0, 0);
       
       const monthQuery = query(
-        collection(db, 'taxQualifications'),
-        where('createdAt', '>=', Timestamp.fromDate(firstDayOfMonth))
+        collection(db, 'calificaciones'),
+        where('fechaCreacion', '>=', Timestamp.fromDate(firstDayOfMonth))
       );
       const monthSnap = await getDocs(monthQuery);
       const qualificationsThisMonth = monthSnap.size;

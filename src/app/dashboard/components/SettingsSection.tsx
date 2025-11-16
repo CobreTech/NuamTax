@@ -3,30 +3,21 @@
 /**
  * Componente SettingsSection (Sección de Configuración)
  * 
- * Permite a los usuarios personalizar el comportamiento de la aplicación según sus preferencias.
- * Las configuraciones se gestionan a través del estado del componente padre (Dashboard).
- * 
- * Funcionalidades:
- * - Selección de formato de fecha.
- * - Selección de separador de decimales.
- * - Configuración del tamaño de página para las tablas.
- * - Opciones de activación/desactivación para notificaciones y guardado automático (decorativas).
- * - Botón para guardar la configuración (simulado).
- *
- * @param {SettingsSectionProps} props - Propiedades del componente para gestionar el estado de la configuración.
+ * Permite a los usuarios personalizar el comportamiento de la aplicación
  */
 
-// Define la interfaz de las propiedades que el componente necesita para funcionar.
+import { useState } from 'react'
+import Icons from '../../utils/icons'
+
 interface SettingsSectionProps {
-  dateFormat: string; // Estado actual del formato de fecha.
-  setDateFormat: (format: string) => void; // Función para actualizar el formato de fecha.
-  decimalSeparator: string; // Estado actual del separador decimal.
-  setDecimalSeparator: (separator: string) => void; // Función para actualizar el separador decimal.
-  pageSize: number; // Estado actual del tamaño de página.
-  setPageSize: (size: number) => void; // Función para actualizar el tamaño de página.
+  dateFormat: string
+  setDateFormat: (format: string) => void
+  decimalSeparator: string
+  setDecimalSeparator: (separator: string) => void
+  pageSize: number
+  setPageSize: (size: number) => void
 }
 
-// Exporta el componente funcional SettingsSection.
 export default function SettingsSection({
   dateFormat,
   setDateFormat,
@@ -35,16 +26,20 @@ export default function SettingsSection({
   pageSize,
   setPageSize
 }: SettingsSectionProps) {
+  const [notifications, setNotifications] = useState(true)
+  const [autoSave, setAutoSave] = useState(true)
+
   return (
     <div className="space-y-4 lg:space-y-6">
-      {/* Contenedor principal de la sección de configuración. */}
       <div className="backdrop-blur-xl bg-white/5 border border-white/10 rounded-2xl p-4 lg:p-6">
         <h2 className="text-lg lg:text-xl font-bold mb-4 lg:mb-6">Configuración del Sistema</h2>
         
         <div className="space-y-4 lg:space-y-6">
-          {/* --- Opción: Formato de Fecha --- */}
+          {/* Formato de Fecha */}
           <div>
-            <label htmlFor="date-format" className="block text-xs lg:text-sm font-medium mb-2">Formato de Fecha</label>
+            <label htmlFor="date-format" className="block text-xs lg:text-sm font-medium mb-2">
+              Formato de Fecha
+            </label>
             <select
               id="date-format"
               value={dateFormat}
@@ -53,13 +48,16 @@ export default function SettingsSection({
             >
               <option value="DD/MM/AAAA">DD/MM/AAAA</option>
               <option value="AAAA-MM-DD">AAAA-MM-DD</option>
+              <option value="MM/DD/AAAA">MM/DD/AAAA</option>
             </select>
             <p className="text-xs text-gray-400 mt-1">Formato actual: {dateFormat}</p>
           </div>
 
-          {/* --- Opción: Separador Decimal --- */}
+          {/* Separador Decimal */}
           <div>
-            <label htmlFor="decimal-separator" className="block text-xs lg:text-sm font-medium mb-2">Separador Decimal</label>
+            <label htmlFor="decimal-separator" className="block text-xs lg:text-sm font-medium mb-2">
+              Separador Decimal
+            </label>
             <select
               id="decimal-separator"
               value={decimalSeparator}
@@ -74,9 +72,11 @@ export default function SettingsSection({
             </p>
           </div>
 
-          {/* --- Opción: Tamaño de Página --- */}
+          {/* Tamaño de Página */}
           <div>
-            <label htmlFor="page-size" className="block text-xs lg:text-sm font-medium mb-2">Tamaño de Página (Tablas)</label>
+            <label htmlFor="page-size" className="block text-xs lg:text-sm font-medium mb-2">
+              Tamaño de Página (Tablas)
+            </label>
             <select
               id="page-size"
               value={pageSize}
@@ -88,41 +88,45 @@ export default function SettingsSection({
               <option value={50}>50 registros</option>
               <option value={100}>100 registros</option>
             </select>
+            <p className="text-xs text-gray-400 mt-1">
+              Se mostrarán {pageSize} registros por página en las tablas
+            </p>
           </div>
 
-          {/* --- Opción: Notificaciones (Toggle Switch) --- */}
+          {/* Notificaciones */}
           <div className="flex items-center justify-between">
             <div>
               <h4 className="text-xs lg:text-sm font-medium">Notificaciones</h4>
               <p className="text-xs text-gray-400">Recibir alertas sobre actualizaciones</p>
             </div>
             <label className="relative inline-flex items-center cursor-pointer">
-              <input type="checkbox" className="sr-only peer" defaultChecked />
+              <input
+                type="checkbox"
+                checked={notifications}
+                onChange={(e) => setNotifications(e.target.checked)}
+                className="sr-only peer"
+              />
               <div className="w-11 h-6 bg-white/20 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-orange-300/50 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-orange-600"></div>
             </label>
           </div>
 
-          {/* --- Opción: Guardado Automático (Toggle Switch) --- */}
+          {/* Guardado Automático */}
           <div className="flex items-center justify-between">
             <div>
               <h4 className="text-xs lg:text-sm font-medium">Guardado Automático</h4>
               <p className="text-xs text-gray-400">Guardar cambios automáticamente</p>
             </div>
             <label className="relative inline-flex items-center cursor-pointer">
-              <input type="checkbox" className="sr-only peer" defaultChecked />
+              <input
+                type="checkbox"
+                checked={autoSave}
+                onChange={(e) => setAutoSave(e.target.checked)}
+                className="sr-only peer"
+              />
               <div className="w-11 h-6 bg-white/20 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-orange-300/50 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-orange-600"></div>
             </label>
           </div>
 
-          {/* --- Botón de Guardar --- */}
-          <div className="pt-4 border-t border-white/10">
-            <button
-              onClick={() => alert('Configuración guardada (demo)')} // Simula la acción de guardar.
-              className="px-4 lg:px-6 py-2 lg:py-3 bg-gradient-to-r from-orange-600 to-amber-600 rounded-xl hover:from-orange-700 hover:to-amber-700 transition-all focus:outline-none focus:ring-2 focus:ring-orange-500 text-sm lg:text-base"
-            >
-              Guardar Configuración
-            </button>
-          </div>
         </div>
       </div>
     </div>
