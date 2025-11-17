@@ -1,14 +1,12 @@
 # Prototipo de Intranet NUAM para Corredores
 
-**ACTUALIZACIÓN:** Sistema **100% COMPLETO** con todas las funcionalidades implementadas:
+**ACTUALIZACIÓN:** Sistema **80% COMPLETO** con las funcionalidades implementadas:
 - ✅ **Autenticación completa** con Firebase Auth (registro, login, recuperación de contraseña)
 - ✅ **RBAC estricto** con control de acceso por roles
 - ✅ **Carga masiva optimizada** con validación, procesamiento CSV/Excel y Firestore
 - ✅ **Dashboard con estadísticas en tiempo real** desde Firestore
 - ✅ **Edición de calificaciones** con validación en tiempo real
 - ✅ **Filtros avanzados** funcionales (mercado, período, monto)
-- ✅ **Exportación de datos** a CSV y Excel
-- ✅ **Persistencia de configuración** del usuario en Firestore
 - ✅ **Auditoría automática** de todas las operaciones
 - ✅ **UI profesional** con React Icons y diseño responsive
 
@@ -242,7 +240,6 @@ Sistema de configuración del usuario con persistencia en Firestore:
 Las siguientes vistas están implementadas a nivel de interfaz:
 
 - **Landing Page**: Página de presentación del sistema.
-- **Dashboard - Resumen General**: Vista principal con accesos rápidos y actividad reciente.
 - **Dashboard - Reportes**: Selección de tipos de reportes con filtros (pendiente de implementación completa).
 
 ---
