@@ -19,6 +19,8 @@ import { useRef, useState } from 'react'
 import { FilePreview, ProcessedRecord, BulkUploadResult, TaxQualification } from './types'
 import { processFile } from '../../services/fileProcessingService'
 import { processBulkUpload } from '../../services/firestoreService'
+import { logBulkUpload } from '../../services/auditService'
+import { useAuth } from '../../context/AuthContext'
 import Icons from '../../utils/icons'
 
 interface UploadSectionProps {
@@ -26,6 +28,7 @@ interface UploadSectionProps {
 }
 
 export default function UploadSection({ brokerId = 'broker-demo-001' }: UploadSectionProps) {
+  const { userProfile } = useAuth()
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [filePreview, setFilePreview] = useState<FilePreview | null>(null)
@@ -167,10 +170,23 @@ export default function UploadSection({ brokerId = 'broker-demo-001' }: UploadSe
       setUploadResult(result)
       setCurrentStep('result')
       
+      // Registrar log de auditoría
+      if (userProfile) {
+        await logBulkUpload(
+          userProfile.uid,
+          userProfile.email || '',
+          `${userProfile.Nombre} ${userProfile.Apellido}`,
+          result.totalRecords,
+          result.added + result.updated,
+          result.errors
+        )
+      }
+      
       // Recargar estadísticas después de completar (mejora #3)
       if (typeof window !== 'undefined') {
         // Disparar evento personalizado para que el dashboard recargue las estadísticas
         window.dispatchEvent(new Event('reloadBrokerStats'))
+        window.dispatchEvent(new Event('reloadQualifications'))
       }
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Error al guardar los datos'

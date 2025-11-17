@@ -10,8 +10,10 @@
 
 import { useState, useEffect } from 'react'
 import { TaxQualification, TaxFactors } from './types'
-import { updateQualification } from '../../services/firestoreService'
+import { updateQualification, getQualificationById } from '../../services/firestoreService'
 import { validateFactorsSum } from '../../services/taxValidationService'
+import { logQualificationUpdated } from '../../services/auditService'
+import { useAuth } from '../../context/AuthContext'
 import Icons from '../../utils/icons'
 
 // Alias para el icono X
@@ -30,6 +32,7 @@ export default function EditQualificationModal({
   onClose,
   onSave
 }: EditQualificationModalProps) {
+  const { userProfile } = useAuth()
   const [formData, setFormData] = useState<Partial<TaxQualification>>({})
   const [factores, setFactores] = useState<TaxFactors>({
     factor8: 0, factor9: 0, factor10: 0, factor11: 0, factor12: 0, factor13: 0,
@@ -128,6 +131,9 @@ export default function EditQualificationModal({
 
     setIsSaving(true)
     try {
+      // Obtener datos antes de actualizar para el log de auditoría
+      const beforeData = await getQualificationById(qualification.id)
+      
       // Preparar datos para actualizar, asegurando que monto tenga la estructura correcta
       const updateData: Partial<TaxQualification> = {
         tipoInstrumento: formData.tipoInstrumento,
@@ -140,6 +146,29 @@ export default function EditQualificationModal({
       };
 
       await updateQualification(qualification.id, updateData)
+      
+      // Obtener datos después de actualizar para el log de auditoría
+      const afterData = await getQualificationById(qualification.id)
+      
+      // Registrar log de auditoría
+      if (userProfile && beforeData && afterData) {
+        await logQualificationUpdated(
+          userProfile.uid,
+          userProfile.email || '',
+          `${userProfile.Nombre} ${userProfile.Apellido}`,
+          qualification.id,
+          {
+            tipoInstrumento: beforeData.tipoInstrumento,
+            mercadoOrigen: beforeData.mercadoOrigen,
+            periodo: beforeData.periodo,
+          },
+          {
+            tipoInstrumento: afterData.tipoInstrumento,
+            mercadoOrigen: afterData.mercadoOrigen,
+            periodo: afterData.periodo,
+          }
+        )
+      }
       
       onSave()
       onClose()

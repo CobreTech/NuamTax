@@ -29,7 +29,7 @@ import Icons from '../utils/icons'
 import SettingsSection from './components/SettingsSection'
 
 // Importación de tipos de datos para una mayor consistencia y seguridad.
-import { Qualification, RecentActivity, FilePreview, MenuItem, ActiveTab } from './components/types'
+import { MenuItem, ActiveTab } from './components/types'
 
 // Importar funciones para obtener datos reales
 import { getBrokerStats, type BrokerStats } from '../services/firestoreService'
@@ -97,27 +97,7 @@ export default function Dashboard() {
     { id: 'settings', label: 'Configuración', icon: <Icons.Settings className="w-5 h-5" /> }
   ]
 
-  // --- DATOS SIMULADOS (MOCK DATA) ---
-  // Estos datos se usarán para la demostración hasta que se integre un backend.
-
-  // Datos de ejemplo para la tabla de calificaciones.
-  const mockQualifications: Qualification[] = [
-    { id: 'CL0001', tipoInstrumento: 'Acción NUAM', mercadoOrigen: 'BVC', periodo: '2024-Q1', factors: 'F8-F12', amount: '$12,500', lastUpdate: '2024-01-15' },
-    { id: 'CL0002', tipoInstrumento: 'Bono Corp A', mercadoOrigen: 'BVC', periodo: '2024-Q1', factors: 'F10-F15', amount: '$45,000', lastUpdate: '2024-01-14' },
-    { id: 'CL0003', tipoInstrumento: 'ETF Regional', mercadoOrigen: 'COLCAP', periodo: '2024-Q1', factors: 'F8-F19', amount: '$8,900', lastUpdate: '2024-01-13' },
-    { id: 'CL0004', tipoInstrumento: 'Acción BVC', mercadoOrigen: 'BVC', periodo: '2024-Q1', factors: 'F12-F16', amount: '$23,400', lastUpdate: '2024-01-12' },
-    { id: 'CL0005', tipoInstrumento: 'Fondo Pensional', mercadoOrigen: 'COLCAP', periodo: '2024-Q1', factors: 'F9-F14', amount: '$67,800', lastUpdate: '2024-01-11' }
-  ]
-
-  // Datos de ejemplo para la sección de actividad reciente.
-  const recentActivity: RecentActivity[] = [
-    { id: 1, action: 'Carga masiva completada', time: 'Hace 2 horas', status: 'success' },
-    { id: 2, action: 'Reporte DJ1948 generado', time: 'Hace 5 horas', status: 'success' },
-    { id: 3, action: 'Validación de factores', time: 'Hace 1 día', status: 'warning' },
-    { id: 4, action: 'Actualización de montos', time: 'Hace 2 días', status: 'success' }
-  ]
-
-  // Nota: El filtrado ahora se maneja dentro de QualificationsSection
+  // Nota: OverviewSection ahora carga datos reales desde Firestore
 
   // --- RENDERIZADO CONDICIONAL ---
   // Función que decide qué componente de sección mostrar según la pestaña activa.
@@ -126,8 +106,7 @@ export default function Dashboard() {
       case 'overview':
         return (
           <OverviewSection 
-            mockQualifications={mockQualifications}
-            recentActivity={recentActivity}
+            brokerId={userProfile?.uid || ''}
             setActiveTab={setActiveTab}
           />
         )
@@ -161,8 +140,7 @@ export default function Dashboard() {
       default:
         return (
           <OverviewSection 
-            mockQualifications={mockQualifications}
-            recentActivity={recentActivity}
+            brokerId={userProfile?.uid || ''}
             setActiveTab={setActiveTab}
           />
         )

@@ -79,7 +79,9 @@ function fromFirestoreFormat(doc: any): TaxQualification {
 }
 
 /**
- * Genera un ID único para una calificación basado en sus datos
+ * Genera un ID único y legible para una calificación basado en sus datos
+ * Formato: CAL-{tipoInstrumento}-{mercadoOrigen}-{periodo}-{usuarioIdShort}
+ * Ejemplo: CAL-accion-nuam-bvc-2024-q1-a1b2c3d4
  */
 function generateQualificationId(qualification: Partial<TaxQualification>): string {
   const usuarioId = qualification.usuarioId || '';
@@ -87,12 +89,44 @@ function generateQualificationId(qualification: Partial<TaxQualification>): stri
   const mercadoOrigen = qualification.mercadoOrigen || '';
   const periodo = qualification.periodo || '';
   
-  const normalized = `${usuarioId}-${tipoInstrumento}-${mercadoOrigen}-${periodo}`
-    .toLowerCase()
-    .replace(/\s+/g, '-')
-    .replace(/[^a-z0-9-]/g, '');
+  // Normalizar campos para que sean legibles pero válidos como ID
+  const normalizeField = (field: string): string => {
+    return field
+      .toLowerCase()
+      .trim()
+      .replace(/\s+/g, '-')           // Espacios a guiones
+      .replace(/[^a-z0-9-]/g, '')    // Eliminar caracteres especiales
+      .replace(/-+/g, '-')            // Múltiples guiones a uno solo
+      .replace(/^-|-$/g, '');         // Eliminar guiones al inicio/fin
+  };
   
-  return normalized;
+  const tipoNorm = normalizeField(tipoInstrumento) || 'sin-tipo';
+  const mercadoNorm = normalizeField(mercadoOrigen) || 'sin-mercado';
+  const periodoNorm = normalizeField(periodo) || 'sin-periodo';
+  
+  // Usar primeros 8 caracteres del usuarioId para mantener unicidad pero hacerlo más corto
+  // Si el usuarioId es muy corto, usar un hash simple
+  let usuarioIdShort = '';
+  if (usuarioId.length >= 8) {
+    usuarioIdShort = usuarioId.substring(0, 8).toLowerCase();
+  } else if (usuarioId.length > 0) {
+    // Si es muy corto, generar un hash simple
+    let hash = 0;
+    for (let i = 0; i < usuarioId.length; i++) {
+      hash = ((hash << 5) - hash) + usuarioId.charCodeAt(i);
+      hash = hash & hash;
+    }
+    usuarioIdShort = Math.abs(hash).toString(36).substring(0, 8);
+  } else {
+    usuarioIdShort = 'unknown';
+  }
+  
+  // Construir ID legible: CAL-{tipo}-{mercado}-{periodo}-{usuarioIdShort}
+  const id = `CAL-${tipoNorm}-${mercadoNorm}-${periodoNorm}-${usuarioIdShort}`;
+  
+  // Limitar longitud total (Firestore tiene límite de 1500 bytes para IDs)
+  // Pero normalmente no debería exceder esto
+  return id.length > 150 ? id.substring(0, 150) : id;
 }
 
 /**
@@ -493,6 +527,27 @@ export interface BrokerStats {
   validatedFactors: number;
   reportsGenerated: number;
   successRate: number;
+}
+
+/**
+ * Obtiene las calificaciones más recientes de un corredor
+ * Para mostrar en el OverviewSection
+ */
+export async function getRecentQualifications(
+  brokerId: string,
+  limitCount: number = 4
+): Promise<TaxQualification[]> {
+  try {
+    if (!brokerId) {
+      return [];
+    }
+
+    const qualifications = await getQualificationsByBrokerId(brokerId, limitCount);
+    return qualifications.slice(0, limitCount);
+  } catch (error) {
+    console.error('[getRecentQualifications] Error obteniendo calificaciones recientes:', error);
+    return [];
+  }
 }
 
 export async function getBrokerStats(brokerId: string): Promise<BrokerStats> {

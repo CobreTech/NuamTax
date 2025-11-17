@@ -6,7 +6,7 @@
  * para cumplir con requisitos de trazabilidad y seguridad (ISO 27001)
  */
 
-import { collection, addDoc, Timestamp } from 'firebase/firestore';
+import { collection, addDoc, Timestamp, query, where, orderBy, limit, getDocs } from 'firebase/firestore';
 import { db } from '../firebase/config';
 
 /**
@@ -256,7 +256,7 @@ export async function logQualificationCreated(
     action: 'CREATE',
     resource: 'qualification',
     resourceId: qualificationId,
-    details: `Calificación creada: ${qualificationData.instrument || 'N/A'}`,
+    details: `Calificación creada: ${qualificationData.tipoInstrumento || qualificationData.instrument || 'N/A'}`,
     changes: {
       after: qualificationData,
     },
@@ -282,7 +282,7 @@ export async function logQualificationUpdated(
     action: 'UPDATE',
     resource: 'qualification',
     resourceId: qualificationId,
-    details: `Calificación actualizada: ${after.instrument || 'N/A'}`,
+    details: `Calificación actualizada: ${after.tipoInstrumento || after.instrument || 'N/A'}`,
     changes: {
       before,
       after,
@@ -308,7 +308,7 @@ export async function logQualificationDeleted(
     action: 'DELETE',
     resource: 'qualification',
     resourceId: qualificationId,
-    details: `Calificación eliminada: ${qualificationData.instrument || 'N/A'}`,
+    details: `Calificación eliminada: ${qualificationData.tipoInstrumento || qualificationData.instrument || 'N/A'}`,
     changes: {
       before: qualificationData,
     },
@@ -338,4 +338,106 @@ export async function logDataExport(
       recordCount,
     },
   });
+}
+
+/**
+ * Obtiene la actividad reciente de un usuario
+ * Para mostrar en el OverviewSection
+ */
+export interface RecentActivityItem {
+  id: string;
+  action: string;
+  time: string;
+  status: 'success' | 'warning' | 'error';
+}
+
+export async function getRecentActivity(
+  userId: string,
+  limitCount: number = 4
+): Promise<RecentActivityItem[]> {
+  try {
+    if (!userId) {
+      return [];
+    }
+
+    let querySnapshot;
+    
+    try {
+      // Intentar consulta con índice compuesto
+      const q = query(
+        collection(db, 'auditLogs'),
+        where('userId', '==', userId),
+        orderBy('timestamp', 'desc'),
+        limit(limitCount)
+      );
+      querySnapshot = await getDocs(q);
+    } catch (error: any) {
+      // Si falla por falta de índice, intentar sin orderBy y ordenar manualmente
+      if (error?.code === 'failed-precondition' || error?.message?.includes('index')) {
+        console.warn('[getRecentActivity] Índice no disponible, consultando sin orderBy...');
+        const q = query(
+          collection(db, 'auditLogs'),
+          where('userId', '==', userId),
+          limit(limitCount * 2) // Obtener más para compensar la falta de orden
+        );
+        querySnapshot = await getDocs(q);
+      } else {
+        throw error;
+      }
+    }
+
+    const activities: RecentActivityItem[] = [];
+
+    const docsWithTimestamps = querySnapshot.docs.map(doc => {
+      const data = doc.data();
+      return {
+        doc,
+        timestamp: data.timestamp?.toDate() || new Date(),
+        data,
+      };
+    });
+
+    // Ordenar por timestamp descendente (si no se usó orderBy en la consulta)
+    docsWithTimestamps.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
+
+    // Tomar solo los primeros limitCount
+    docsWithTimestamps.slice(0, limitCount).forEach(({ doc, timestamp, data }) => {
+      const now = new Date();
+      const diffMs = now.getTime() - timestamp.getTime();
+      const diffMins = Math.floor(diffMs / 60000);
+      const diffHours = Math.floor(diffMs / 3600000);
+      const diffDays = Math.floor(diffMs / 86400000);
+
+      let timeString = '';
+      if (diffMins < 1) {
+        timeString = 'Hace unos momentos';
+      } else if (diffMins < 60) {
+        timeString = `Hace ${diffMins} ${diffMins === 1 ? 'minuto' : 'minutos'}`;
+      } else if (diffHours < 24) {
+        timeString = `Hace ${diffHours} ${diffHours === 1 ? 'hora' : 'horas'}`;
+      } else {
+        timeString = `Hace ${diffDays} ${diffDays === 1 ? 'día' : 'días'}`;
+      }
+
+      // Determinar status basado en la acción
+      let status: 'success' | 'warning' | 'error' = 'success';
+      if (data.action === 'DELETE' || data.action === 'LOGOUT') {
+        status = 'warning';
+      } else if (data.metadata?.errorCount > 0) {
+        status = 'error';
+      }
+
+      activities.push({
+        id: doc.id,
+        action: data.details || `${data.action} en ${data.resource}`,
+        time: timeString,
+        status,
+      });
+    });
+
+    return activities;
+  } catch (error) {
+    console.error('[getRecentActivity] Error obteniendo actividad reciente:', error);
+    return [];
+  }
 }
