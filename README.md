@@ -1,14 +1,18 @@
 # Prototipo de Intranet NUAM para Corredores
 
-**ACTUALIZACIÓN:** Sistema **80% COMPLETO** con las funcionalidades implementadas:
+**ACTUALIZACIÓN:** Sistema con funcionalidades core implementadas y algunas en desarrollo:
 - ✅ **Autenticación completa** con Firebase Auth (registro, login, recuperación de contraseña)
 - ✅ **RBAC estricto** con control de acceso por roles
 - ✅ **Carga masiva optimizada** con validación, procesamiento CSV/Excel y Firestore
 - ✅ **Dashboard con estadísticas en tiempo real** desde Firestore
-- ✅ **Edición de calificaciones** con validación en tiempo real
-- ✅ **Filtros avanzados** funcionales (mercado, período, monto)
+- ✅ **Gestión de calificaciones** (edición, búsqueda, filtros, exportación)
+- ✅ **Validación y formateo de RUTs chilenos** en todos los campos
 - ✅ **Auditoría automática** de todas las operaciones
 - ✅ **UI profesional** con React Icons y diseño responsive
+- 🟡 **Generación de DJ1948** (implementación inicial, requiere perfeccionamiento)
+- ⏳ **Otros reportes** (pendientes de implementación)
+- ⏳ **Crear/Eliminar calificaciones** (pendientes de implementación)
+- ⏳ **Persistencia de configuración** (pendiente de implementación)
 
 Este proyecto es un prototipo funcional de la intranet NUAM (holding regional de bolsas de Santiago, Lima y Colombia) que implementa autenticación, gestión de usuarios y carga masiva de calificaciones tributarias con backend completo en Firebase.
 
@@ -47,7 +51,7 @@ El proyecto sigue la estructura estándar de una aplicación Next.js con el App 
         │   │   ├── EditQualificationModal.tsx # Modal de edición
         │   │   ├── UploadSection.tsx # Módulo de carga masiva (100% funcional)
         │   │   ├── ReportsSection.tsx
-        │   │   ├── SettingsSection.tsx # Configuración persistente
+        │   │   ├── SettingsSection.tsx # Configuración (UI completa, persistencia pendiente)
         │   │   └── types.ts          # Definiciones de tipos TypeScript
         │   ├── layout.tsx            # Layout del dashboard
         │   └── page.tsx              # Página principal del dashboard
@@ -60,10 +64,13 @@ El proyecto sigue la estructura estándar de una aplicación Next.js con el App 
         │   ├── fileProcessingService.ts # Procesamiento CSV/Excel
         │   ├── taxValidationService.ts # Validación de datos tributarios
         │   ├── exportService.ts       # Exportación a CSV/Excel
-        │   ├── configService.ts      # Persistencia de configuración
-        │   └── auditService.ts       # Servicio de auditoría
+        │   ├── auditService.ts       # Servicio de auditoría
+        │   ├── dj1948Service.ts      # Generación de reporte DJ1948 (inicial)
+        │   ├── dj1948TransformService.ts # Transformación de datos para DJ1948
+        │   └── dj1948Types.ts        # Tipos TypeScript para DJ1948
         ├── utils/                    # Utilidades
-        │   └── paths.ts              # Rutas de assets
+        │   ├── paths.ts              # Rutas de assets
+        │   └── rutUtils.ts           # Validación y formateo de RUTs chilenos
         ├── globals.css               # Estilos globales
         ├── layout.tsx                # Layout raíz
         └── page.tsx                  # Landing page
@@ -210,37 +217,103 @@ Módulo completo para gestionar calificaciones tributarias:
 - Incluye todos los campos y factores tributarios
 - Nombre de archivo con fecha automática
 
+**Funcionalidades Adicionales:**
+- ✅ **Asignación de RUT Contribuyente**: Campo para asociar calificaciones a contribuyentes específicos
+- ✅ **Visualización de RUT Contribuyente**: Muestra RUT formateado en tablas y vistas móviles
+- ✅ **Validación de RUT**: Todos los campos de RUT validan y formatean automáticamente
+
+**Pendiente:**
+- ⏳ Crear nueva calificación manualmente
+- ⏳ Eliminar calificación con confirmación
+
 ---
 
-#### **Configuración Persistente** - 100% Funcional ✅
+#### **Validación y Formateo de RUTs** - 100% Funcional ✅
 
-Sistema de configuración del usuario con persistencia en Firestore:
+Sistema completo de validación y formateo de RUTs chilenos:
 
 **Características Implementadas:**
-- ✅ **Persistencia en Firestore** en colección `userConfigs`
-- ✅ **Carga automática** de configuración al iniciar sesión
-- ✅ **Guardado manual** con feedback visual
-- ✅ **Configuraciones disponibles:**
-  - Formato de fecha (DD/MM/AAAA, AAAA-MM-DD, MM/DD/AAAA)
-  - Separador decimal (coma o punto)
-  - Tamaño de página para tablas (10, 25, 50, 100)
-  - Notificaciones (activar/desactivar)
-  - Guardado automático (activar/desactivar)
+- ✅ **Validación de RUT chileno** con algoritmo oficial del SII
+- ✅ **Formateo automático** a formato estándar `11.111.111-1`
+- ✅ **Soporte de múltiples formatos** de entrada (con/sin puntos y guiones)
+- ✅ **Validación en tiempo real** en todos los campos de RUT
+- ✅ **Manejo de dígito verificador 'K'**
+- ✅ **Normalización para comparaciones** (almacena limpio, muestra formateado)
 
-**Flujo de Usuario:**
-1. Usuario configura sus preferencias
-2. Al hacer clic en "Guardar", se persiste en Firestore
-3. La configuración se carga automáticamente en sesiones futuras
-4. Feedback visual de éxito/error al guardar
+**Campos con Validación:**
+- RUT Contribuyente (en edición de calificaciones)
+- RUT Receptor (en generación de reportes DJ1948)
+- Selector de contribuyentes (en reportes)
+- Visualización en tablas y listas
 
 ---
 
-### 🟡 Funcionalidades de Maqueta (Solo UI)
+### 🟡 Funcionalidades en Desarrollo
 
-Las siguientes vistas están implementadas a nivel de interfaz:
+#### **Generación de Reporte DJ1948** - Implementación Inicial 🟡
 
-- **Landing Page**: Página de presentación del sistema.
-- **Dashboard - Reportes**: Selección de tipos de reportes con filtros (pendiente de implementación completa).
+Generación de reporte DJ1948 en múltiples formatos (PDF, CSV, Excel):
+
+**Estado Actual:**
+- ✅ Generación básica en PDF, CSV y Excel
+- ✅ Transformación de datos de calificaciones a formato DJ1948
+- ✅ Filtrado por contribuyente
+- ✅ Validación y formateo de RUTs
+- ✅ Selector de contribuyente cuando hay múltiples
+- 🟡 **Requiere perfeccionamiento**: Validaciones adicionales, manejo de casos edge, mejoras en formato
+
+**Formatos Disponibles:**
+- PDF: Generación con jsPDF y autoTable
+- CSV: Formato compatible con SII
+- Excel: Multi-sheet con formato profesional
+
+**Pendiente de Mejoras:**
+- Validaciones más estrictas según instructivo SII
+- Manejo de casos especiales (retiros en exceso, etc.)
+- Optimización de formato para mejor legibilidad
+- Validación de datos antes de generar
+
+---
+
+#### **Configuración de Usuario** - Solo UI (Sin Persistencia) 🟡
+
+Interfaz de configuración del usuario:
+
+**Estado Actual:**
+- ✅ Interfaz completa con todas las opciones
+- ✅ Cambios se reflejan en la sesión actual
+- ❌ **No persiste en Firestore** (solo estado local)
+- ❌ No se carga automáticamente al iniciar sesión
+
+**Opciones Disponibles:**
+- Formato de fecha (DD/MM/AAAA, AAAA-MM-DD, MM/DD/AAAA)
+- Separador decimal (coma o punto)
+- Tamaño de página para tablas (10, 25, 50, 100)
+- Notificaciones (activar/desactivar)
+- Guardado automático (activar/desactivar)
+
+**Pendiente:**
+- Implementar persistencia en Firestore (colección `userConfigs`)
+- Carga automática al iniciar sesión
+- Botón de guardado con feedback
+
+---
+
+### ⏳ Funcionalidades Pendientes
+
+#### **CRUD Completo de Calificaciones**
+- ⏳ **Crear calificación manualmente**: Botón "Nueva Calificación" con formulario completo
+- ⏳ **Eliminar calificación**: Botón eliminar con confirmación y registro en auditoría
+
+#### **Otros Reportes**
+- ⏳ **Calificaciones por Evento**: Reporte agrupado por tipo de evento de capital
+- ⏳ **Resumen por Período**: Consolidado de calificaciones por período fiscal
+- ⏳ **Factores por Instrumento**: Análisis de factores tributarios por tipo de instrumento
+
+#### **Mejoras Adicionales**
+- ⏳ Optimización de consultas Firestore para grandes volúmenes
+- ⏳ Exportación de reportes con plantillas personalizables
+- ⏳ Notificaciones en tiempo real de cambios importantes
 
 ---
 *CobreTech, cualquier uso sin los debidos créditos a los propietarios del prototipo es ilegal.*

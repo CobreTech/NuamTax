@@ -32,6 +32,7 @@ export interface Monto {
 export interface TaxQualification {
   id: string;                    // Identificador único de la calificación.
   usuarioId: string;             // UID del corredor propietario (segregación) - antes brokerId
+  rutContribuyente?: string;     // RUT del contribuyente (persona natural o jurídica) dueño de la calificación - para DJ1948
   tipoInstrumento: string;       // Tipo de instrumento financiero - antes instrument
   mercadoOrigen: string;          // Mercado de valores del instrumento - antes market
   periodo: string;                // Período tributario de la calificación (ej. 2024-12-31)

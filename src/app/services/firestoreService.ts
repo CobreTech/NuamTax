@@ -36,6 +36,7 @@ const COLLECTION_NAME = 'calificaciones';
 function toFirestoreFormat(qualification: TaxQualification): any {
   return {
     usuarioId: qualification.usuarioId,
+    ...(qualification.rutContribuyente && { rutContribuyente: qualification.rutContribuyente }),
     tipoInstrumento: qualification.tipoInstrumento,
     mercadoOrigen: qualification.mercadoOrigen,
     periodo: qualification.periodo,
@@ -60,6 +61,7 @@ function fromFirestoreFormat(doc: any): TaxQualification {
   return {
     id: doc.id,
     usuarioId: data.usuarioId || '',
+    rutContribuyente: data.rutContribuyente || undefined,
     tipoInstrumento: data.tipoInstrumento || '',
     mercadoOrigen: data.mercadoOrigen || '',
     periodo: data.periodo || '',

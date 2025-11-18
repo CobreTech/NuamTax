@@ -14,6 +14,7 @@ import { updateQualification, getQualificationById } from '../../services/firest
 import { validateFactorsSum } from '../../services/taxValidationService'
 import { logQualificationUpdated } from '../../services/auditService'
 import { useAuth } from '../../context/AuthContext'
+import { validateAndFormatRUT } from '../../utils/rutUtils'
 import Icons from '../../utils/icons'
 
 // Alias para el icono X
@@ -41,6 +42,7 @@ export default function EditQualificationModal({
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [isSaving, setIsSaving] = useState(false)
   const [factorSum, setFactorSum] = useState(0)
+  const [rutContribuyenteFormatted, setRutContribuyenteFormatted] = useState('')
 
   // Cargar datos cuando se abre el modal
   useEffect(() => {
@@ -51,8 +53,16 @@ export default function EditQualificationModal({
         periodo: qualification.periodo,
         tipoCalificacion: qualification.tipoCalificacion,
         monto: qualification.monto,
-        esNoInscrita: qualification.esNoInscrita
+        esNoInscrita: qualification.esNoInscrita,
+        rutContribuyente: qualification.rutContribuyente
       })
+      // Formatear RUT contribuyente si existe
+      if (qualification.rutContribuyente) {
+        const rutResult = validateAndFormatRUT(qualification.rutContribuyente)
+        setRutContribuyenteFormatted(rutResult.formatted)
+      } else {
+        setRutContribuyenteFormatted('')
+      }
       setFactores(qualification.factores || {
         factor8: 0, factor9: 0, factor10: 0, factor11: 0, factor12: 0, factor13: 0,
         factor14: 0, factor15: 0, factor16: 0, factor17: 0, factor18: 0, factor19: 0
@@ -143,6 +153,7 @@ export default function EditQualificationModal({
         esNoInscrita: formData.esNoInscrita,
         factores,
         monto: formData.monto || { valor: 0, moneda: 'CLP' },
+        rutContribuyente: formData.rutContribuyente || undefined,
       };
 
       await updateQualification(qualification.id, updateData)
@@ -231,6 +242,65 @@ export default function EditQualificationModal({
                 <option value="COLCAP" className="bg-slate-800 text-white">COLCAP</option>
               </select>
               {errors.mercadoOrigen && <p className="text-red-400 text-xs mt-1">{errors.mercadoOrigen}</p>}
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium mb-2 text-gray-200">RUT Contribuyente</label>
+              <input
+                type="text"
+                value={rutContribuyenteFormatted}
+                onChange={(e) => {
+                  const inputValue = e.target.value
+                  setRutContribuyenteFormatted(inputValue)
+                  
+                  // Validar y formatear en tiempo real
+                  if (inputValue.trim() === '') {
+                    handleInputChange('rutContribuyente', undefined)
+                    setErrors(prev => {
+                      const newErrors = { ...prev }
+                      delete newErrors.rutContribuyente
+                      return newErrors
+                    })
+                  } else {
+                    const rutResult = validateAndFormatRUT(inputValue)
+                    setRutContribuyenteFormatted(rutResult.formatted)
+                    
+                    if (rutResult.isValid) {
+                      handleInputChange('rutContribuyente', rutResult.clean)
+                      setErrors(prev => {
+                        const newErrors = { ...prev }
+                        delete newErrors.rutContribuyente
+                        return newErrors
+                      })
+                    } else {
+                      setErrors(prev => ({
+                        ...prev,
+                        rutContribuyente: 'RUT inválido. Formato: 11.111.111-1 o 11111111-1'
+                      }))
+                    }
+                  }
+                }}
+                onBlur={(e) => {
+                  const inputValue = e.target.value.trim()
+                  if (inputValue) {
+                    const rutResult = validateAndFormatRUT(inputValue)
+                    if (rutResult.isValid) {
+                      setRutContribuyenteFormatted(rutResult.formatted)
+                      handleInputChange('rutContribuyente', rutResult.clean)
+                    }
+                  }
+                }}
+                className={`w-full px-4 py-2 bg-slate-800/50 border rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500 text-white placeholder-gray-400 ${
+                  errors.rutContribuyente ? 'border-red-500' : 'border-white/30'
+                }`}
+                placeholder="Ej: 12.345.678-9 o 12345678-9 (opcional)"
+              />
+              {errors.rutContribuyente && (
+                <p className="text-red-400 text-xs mt-1">{errors.rutContribuyente}</p>
+              )}
+              <p className="text-xs text-gray-400 mt-1">
+                Persona natural o jurídica dueña de esta calificación. Si no se especifica, se usará el RUT del corredor.
+              </p>
             </div>
 
             <div>

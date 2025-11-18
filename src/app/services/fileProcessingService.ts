@@ -94,6 +94,7 @@ function rowToTaxQualification(row: FileRow, brokerId: string): Partial<TaxQuali
 
   return {
     usuarioId: brokerId,
+    rutContribuyente: row.rut_contribuyente || row.rutContribuyente || undefined,
     tipoInstrumento: String(row.instrumento || row.tipoInstrumento || '').trim(),
     mercadoOrigen: String(row.mercado || row.mercadoOrigen || '').trim(),
     periodo: String(row.periodo || '').trim(),

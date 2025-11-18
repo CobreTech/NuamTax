@@ -20,6 +20,7 @@ import { useState, useEffect, useMemo } from 'react'
 import { TaxQualification, ActiveTab } from './types'
 import { getQualificationsByBrokerId, searchQualifications } from '../../services/firestoreService'
 import { exportToCSV, exportToExcel } from '../../services/exportService'
+import { validateAndFormatRUT } from '../../utils/rutUtils'
 import EditQualificationModal from './EditQualificationModal'
 import Icons from '../../utils/icons'
 
@@ -386,6 +387,18 @@ export default function QualificationsSection({
                   </div>
                   <div className="grid grid-cols-2 gap-2 text-xs">
                     <div>
+                      <span className="text-gray-400">RUT Contribuyente:</span>
+                      <span className="ml-1">
+                        {qual.rutContribuyente ? (
+                          <span className="text-blue-300">
+                            {validateAndFormatRUT(qual.rutContribuyente).formatted || qual.rutContribuyente}
+                          </span>
+                        ) : (
+                          <span className="text-gray-500 italic">Sin asignar</span>
+                        )}
+                      </span>
+                    </div>
+                    <div>
                       <span className="text-gray-400">Período:</span>
                       <span className="ml-1">{qual.periodo}</span>
                     </div>
@@ -420,6 +433,7 @@ export default function QualificationsSection({
                 <table className="w-full">
                   <thead>
                     <tr className="border-b border-white/10">
+                      <th className="text-left py-3 px-4 text-sm">RUT Contribuyente</th>
                       <th className="text-left py-3 px-4 text-sm">Tipo de Instrumento</th>
                       <th className="text-left py-3 px-4 text-sm">Mercado de Origen</th>
                       <th className="text-left py-3 px-4 text-sm">Período</th>
@@ -434,6 +448,15 @@ export default function QualificationsSection({
                   <tbody>
                     {paginatedQualifications.map((qual) => (
                       <tr key={qual.id} className="border-b border-white/5 hover:bg-white/5 transition-colors">
+                        <td className="py-3 px-4 text-sm">
+                          {qual.rutContribuyente ? (
+                            <span className="text-blue-300">
+                              {validateAndFormatRUT(qual.rutContribuyente).formatted || qual.rutContribuyente}
+                            </span>
+                          ) : (
+                            <span className="text-gray-500 italic">Sin asignar</span>
+                          )}
+                        </td>
                         <td className="py-3 px-4 text-sm">{qual.tipoInstrumento}</td>
                         <td className="py-3 px-4 text-sm">{qual.mercadoOrigen}</td>
                         <td className="py-3 px-4 text-sm">{qual.periodo}</td>
