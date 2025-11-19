@@ -23,6 +23,7 @@ import { exportToCSV, exportToExcel } from '../../services/exportService'
 import { validateAndFormatRUT } from '../../utils/rutUtils'
 import EditQualificationModal from './EditQualificationModal'
 import Icons from '../../utils/icons'
+import CustomDropdown from '../../components/CustomDropdown'
 
 interface QualificationsSectionProps {
   brokerId?: string
@@ -30,10 +31,10 @@ interface QualificationsSectionProps {
   pageSize: number
 }
 
-export default function QualificationsSection({ 
+export default function QualificationsSection({
   brokerId = 'broker-demo-001',
   setActiveTab,
-  pageSize 
+  pageSize
 }: QualificationsSectionProps) {
   const [qualifications, setQualifications] = useState<TaxQualification[]>([])
   const [loading, setLoading] = useState(true)
@@ -55,7 +56,7 @@ export default function QualificationsSection({
         setLoading(false);
         return;
       }
-      
+
       setLoading(true)
       setError(null)
       try {
@@ -77,7 +78,7 @@ export default function QualificationsSection({
       loadQualifications()
     }
     window.addEventListener('reloadQualifications', handleReload)
-    
+
     return () => {
       window.removeEventListener('reloadQualifications', handleReload)
     }
@@ -150,7 +151,7 @@ export default function QualificationsSection({
     const activeFactors = Object.entries(factores)
       .filter(([_, value]) => value > 0)
       .map(([key]) => key.toUpperCase().replace('FACTOR', 'F'))
-    
+
     if (activeFactors.length === 0) return 'N/A'
     if (activeFactors.length <= 3) return activeFactors.join(', ')
     return `${activeFactors[0]}-${activeFactors[activeFactors.length - 1]}`
@@ -298,33 +299,29 @@ export default function QualificationsSection({
 
               {/* Filtros avanzados */}
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
-                <select
+                <CustomDropdown
                   value={filterMarket}
-                  onChange={(e) => {
-                    setFilterMarket(e.target.value)
+                  onChange={(val) => {
+                    setFilterMarket(val as string)
                     setCurrentPage(1)
                   }}
-                  className="px-3 lg:px-4 py-2 bg-white/10 border border-white/20 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500 text-sm lg:text-base"
-                >
-                  <option value="">Todos los mercados</option>
-                  {uniqueMarkets.map(market => (
-                    <option key={market} value={market}>{market}</option>
-                  ))}
-                </select>
+                  options={[
+                    { value: "", label: "Todos los mercados" },
+                    ...uniqueMarkets.map(market => ({ value: market, label: market }))
+                  ]}
+                />
 
-                <select
+                <CustomDropdown
                   value={filterPeriod}
-                  onChange={(e) => {
-                    setFilterPeriod(e.target.value)
+                  onChange={(val) => {
+                    setFilterPeriod(val as string)
                     setCurrentPage(1)
                   }}
-                  className="px-3 lg:px-4 py-2 bg-white/10 border border-white/20 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500 text-sm lg:text-base"
-                >
-                  <option value="">Todos los períodos</option>
-                  {uniquePeriods.map(period => (
-                    <option key={period} value={period}>{period}</option>
-                  ))}
-                </select>
+                  options={[
+                    { value: "", label: "Todos los períodos" },
+                    ...uniquePeriods.map(period => ({ value: period, label: period }))
+                  ]}
+                />
 
                 <input
                   type="number"
@@ -523,11 +520,10 @@ export default function QualificationsSection({
                           {showEllipsis && <span className="text-gray-400">...</span>}
                           <button
                             onClick={() => setCurrentPage(page)}
-                            className={`px-2 lg:px-3 py-1 rounded-lg text-xs lg:text-sm transition-colors ${
-                              currentPage === page
+                            className={`px-2 lg:px-3 py-1 rounded-lg text-xs lg:text-sm transition-colors ${currentPage === page
                                 ? 'bg-orange-600/20 text-orange-300'
                                 : 'bg-white/10 hover:bg-white/20'
-                            }`}
+                              }`}
                           >
                             {page}
                           </button>

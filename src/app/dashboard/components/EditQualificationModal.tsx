@@ -16,6 +16,7 @@ import { logQualificationUpdated, logQualificationCreated } from '../../services
 import { useAuth } from '../../context/AuthContext'
 import { validateAndFormatRUT } from '../../utils/rutUtils'
 import Icons from '../../utils/icons'
+import CustomDropdown from '../../components/CustomDropdown'
 
 // Alias para el icono X
 const X = Icons.Close
@@ -98,7 +99,7 @@ export default function EditQualificationModal({
   useEffect(() => {
     const sum = Object.values(factores).reduce((acc, val) => acc + val, 0)
     setFactorSum(sum)
-    
+
     // Validar suma
     const validation = validateFactorsSum(factores)
     if (!validation.isValid) {
@@ -115,7 +116,7 @@ export default function EditQualificationModal({
   const handleFactorChange = (factor: keyof TaxFactors, value: string) => {
     const numValue = parseFloat(value) || 0
     if (numValue < 0 || numValue > 1) return
-    
+
     setFactores(prev => ({
       ...prev,
       [factor]: numValue
@@ -186,7 +187,7 @@ export default function EditQualificationModal({
         }
 
         const qualificationId = await createQualification(newQualification)
-        
+
         // Registrar log de auditoría
         if (userProfile) {
           await logQualificationCreated(
@@ -207,7 +208,7 @@ export default function EditQualificationModal({
 
         // Obtener datos antes de actualizar para el log de auditoría
         const beforeData = await getQualificationById(qualification.id)
-        
+
         // Preparar datos para actualizar, asegurando que monto tenga la estructura correcta
         const updateData: Partial<TaxQualification> = {
           tipoInstrumento: formData.tipoInstrumento,
@@ -221,10 +222,10 @@ export default function EditQualificationModal({
         };
 
         await updateQualification(qualification.id, updateData)
-        
+
         // Obtener datos después de actualizar para el log de auditoría
         const afterData = await getQualificationById(qualification.id)
-        
+
         // Registrar log de auditoría
         if (userProfile && beforeData && afterData) {
           await logQualificationUpdated(
@@ -245,14 +246,15 @@ export default function EditQualificationModal({
           )
         }
       }
-      
+
       onSave()
       onClose()
     } catch (error) {
       console.error('Error guardando calificación:', error)
-      setErrors({ submit: isCreateMode 
-        ? 'Error al crear la calificación. Intente nuevamente.' 
-        : 'Error al guardar la calificación. Intente nuevamente.' 
+      setErrors({
+        submit: isCreateMode
+          ? 'Error al crear la calificación. Intente nuevamente.'
+          : 'Error al guardar la calificación. Intente nuevamente.'
       })
     } finally {
       setIsSaving(false)
@@ -262,8 +264,8 @@ export default function EditQualificationModal({
   if (!isOpen) return null
   if (!isCreateMode && !qualification) return null
 
-  const factorKeys: (keyof TaxFactors)[] = ['factor8', 'factor9', 'factor10', 'factor11', 'factor12', 'factor13', 
-                                             'factor14', 'factor15', 'factor16', 'factor17', 'factor18', 'factor19']
+  const factorKeys: (keyof TaxFactors)[] = ['factor8', 'factor9', 'factor10', 'factor11', 'factor12', 'factor13',
+    'factor14', 'factor15', 'factor16', 'factor17', 'factor18', 'factor19']
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
@@ -290,28 +292,24 @@ export default function EditQualificationModal({
                 type="text"
                 value={formData.tipoInstrumento || ''}
                 onChange={(e) => handleInputChange('tipoInstrumento', e.target.value)}
-                className={`w-full px-4 py-2 bg-slate-800/50 border rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500 text-white placeholder-gray-400 ${
-                  errors.tipoInstrumento ? 'border-red-500' : 'border-white/30'
-                }`}
+                className={`w-full px-4 py-2 bg-slate-800/50 border rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500 text-white placeholder-gray-400 ${errors.tipoInstrumento ? 'border-red-500' : 'border-white/30'
+                  }`}
               />
               {errors.tipoInstrumento && <p className="text-red-400 text-xs mt-1">{errors.tipoInstrumento}</p>}
             </div>
 
             <div>
-              <label className="block text-sm font-medium mb-2 text-gray-200">Mercado de Origen *</label>
-              <select
+              <CustomDropdown
+                label="Mercado de Origen *"
                 value={formData.mercadoOrigen || ''}
-                onChange={(e) => handleInputChange('mercadoOrigen', e.target.value)}
-                className={`w-full px-4 py-2 bg-slate-800/50 border rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500 text-white ${
-                  errors.mercadoOrigen ? 'border-red-500' : 'border-white/30'
-                }`}
-                style={{ colorScheme: 'dark' }}
-              >
-                <option value="" className="bg-slate-800 text-white">Seleccionar...</option>
-                <option value="Bolsa de Santiago" className="bg-slate-800 text-white">Bolsa de Santiago</option>
-                <option value="BVC" className="bg-slate-800 text-white">BVC</option>
-                <option value="COLCAP" className="bg-slate-800 text-white">COLCAP</option>
-              </select>
+                onChange={(val) => handleInputChange('mercadoOrigen', val as string)}
+                options={[
+                  { value: "", label: "Seleccionar..." },
+                  { value: "Bolsa de Santiago", label: "Bolsa de Santiago" },
+                  { value: "BVC", label: "BVC" },
+                  { value: "COLCAP", label: "COLCAP" },
+                ]}
+              />
               {errors.mercadoOrigen && <p className="text-red-400 text-xs mt-1">{errors.mercadoOrigen}</p>}
             </div>
 
@@ -323,7 +321,7 @@ export default function EditQualificationModal({
                 onChange={(e) => {
                   const inputValue = e.target.value
                   setRutContribuyenteFormatted(inputValue)
-                  
+
                   // Validar y formatear en tiempo real
                   if (inputValue.trim() === '') {
                     handleInputChange('rutContribuyente', undefined)
@@ -335,7 +333,7 @@ export default function EditQualificationModal({
                   } else {
                     const rutResult = validateAndFormatRUT(inputValue)
                     setRutContribuyenteFormatted(rutResult.formatted)
-                    
+
                     if (rutResult.isValid) {
                       handleInputChange('rutContribuyente', rutResult.clean)
                       setErrors(prev => {
@@ -361,9 +359,8 @@ export default function EditQualificationModal({
                     }
                   }
                 }}
-                className={`w-full px-4 py-2 bg-slate-800/50 border rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500 text-white placeholder-gray-400 ${
-                  errors.rutContribuyente ? 'border-red-500' : 'border-white/30'
-                }`}
+                className={`w-full px-4 py-2 bg-slate-800/50 border rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500 text-white placeholder-gray-400 ${errors.rutContribuyente ? 'border-red-500' : 'border-white/30'
+                  }`}
                 placeholder="Ej: 12.345.678-9 o 12345678-9 (opcional)"
               />
               {errors.rutContribuyente && (
@@ -381,9 +378,8 @@ export default function EditQualificationModal({
                 value={formData.periodo || ''}
                 onChange={(e) => handleInputChange('periodo', e.target.value)}
                 placeholder="2024-12-31"
-                className={`w-full px-4 py-2 bg-slate-800/50 border rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500 text-white placeholder-gray-400 ${
-                  errors.periodo ? 'border-red-500' : 'border-white/30'
-                }`}
+                className={`w-full px-4 py-2 bg-slate-800/50 border rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500 text-white placeholder-gray-400 ${errors.periodo ? 'border-red-500' : 'border-white/30'
+                  }`}
               />
               {errors.periodo && <p className="text-red-400 text-xs mt-1">{errors.periodo}</p>}
             </div>
@@ -394,9 +390,8 @@ export default function EditQualificationModal({
                 type="text"
                 value={formData.tipoCalificacion || ''}
                 onChange={(e) => handleInputChange('tipoCalificacion', e.target.value)}
-                className={`w-full px-4 py-2 bg-slate-800/50 border rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500 text-white placeholder-gray-400 ${
-                  errors.tipoCalificacion ? 'border-red-500' : 'border-white/30'
-                }`}
+                className={`w-full px-4 py-2 bg-slate-800/50 border rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500 text-white placeholder-gray-400 ${errors.tipoCalificacion ? 'border-red-500' : 'border-white/30'
+                  }`}
               />
               {errors.tipoCalificacion && <p className="text-red-400 text-xs mt-1">{errors.tipoCalificacion}</p>}
             </div>
@@ -413,29 +408,27 @@ export default function EditQualificationModal({
                   valor: parseFloat(e.target.value) || 0,
                   moneda: formData.monto?.moneda || 'CLP'
                 })}
-                className={`w-full px-4 py-2 bg-slate-800/50 border rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500 text-white ${
-                  errors.monto ? 'border-red-500' : 'border-white/30'
-                }`}
+                className={`w-full px-4 py-2 bg-slate-800/50 border rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500 text-white ${errors.monto ? 'border-red-500' : 'border-white/30'
+                  }`}
               />
               {errors.monto && <p className="text-red-400 text-xs mt-1">{errors.monto}</p>}
             </div>
 
             <div>
-              <label className="block text-sm font-medium mb-2 text-gray-200">Moneda</label>
-              <select
+              <CustomDropdown
+                label="Moneda"
                 value={formData.monto?.moneda || 'CLP'}
-                onChange={(e) => handleInputChange('monto', {
+                onChange={(val) => handleInputChange('monto', {
                   ...formData.monto,
                   valor: formData.monto?.valor || 0,
-                  moneda: e.target.value
+                  moneda: val as string
                 })}
-                className="w-full px-4 py-2 bg-slate-800/50 border border-white/30 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500 text-white"
-                style={{ colorScheme: 'dark' }}
-              >
-                <option value="CLP" className="bg-slate-800 text-white">CLP</option>
-                <option value="USD" className="bg-slate-800 text-white">USD</option>
-                <option value="EUR" className="bg-slate-800 text-white">EUR</option>
-              </select>
+                options={[
+                  { value: "CLP", label: "CLP" },
+                  { value: "USD", label: "USD" },
+                  { value: "EUR", label: "EUR" },
+                ]}
+              />
             </div>
 
             <div className="flex items-center">
@@ -498,8 +491,8 @@ export default function EditQualificationModal({
               disabled={isSaving || factorSum > 1}
               className="px-6 py-2 bg-gradient-to-r from-orange-600 to-amber-600 rounded-xl hover:from-orange-700 hover:to-amber-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed text-white font-medium"
             >
-              {isSaving 
-                ? (isCreateMode ? 'Creando...' : 'Guardando...') 
+              {isSaving
+                ? (isCreateMode ? 'Creando...' : 'Guardando...')
                 : (isCreateMode ? 'Crear Calificación' : 'Guardar Cambios')
               }
             </button>

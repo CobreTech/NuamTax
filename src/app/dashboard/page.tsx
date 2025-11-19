@@ -34,6 +34,7 @@ import { MenuItem, ActiveTab } from './components/types'
 // Importar funciones para obtener datos reales
 import { getBrokerStats, type BrokerStats } from '../services/firestoreService'
 import { useAuth } from '../context/AuthContext'
+import { logLogout } from '../services/auditService'
 
 // Componente principal del Dashboard.
 export default function Dashboard() {
@@ -43,12 +44,12 @@ export default function Dashboard() {
   // --- ESTADOS DEL COMPONENTE ---
   const [activeTab, setActiveTab] = useState<ActiveTab>('overview') // Pestaña activa en la navegación.
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false) // Controla la visibilidad del menú en móviles.
-  
+
   // Estados para la sección de configuración.
   const [dateFormat, setDateFormat] = useState('DD/MM/AAAA') // Formato de fecha preferido.
   const [decimalSeparator, setDecimalSeparator] = useState('coma') // Separador de decimales.
   const [pageSize, setPageSize] = useState(10) // Cantidad de elementos por página en las tablas.
-  
+
   // Estados para estadísticas reales
   const [brokerStats, setBrokerStats] = useState<BrokerStats>({
     totalQualifications: 0,
@@ -82,7 +83,7 @@ export default function Dashboard() {
     }
 
     window.addEventListener('reloadBrokerStats', handleReloadStats)
-    
+
     return () => {
       window.removeEventListener('reloadBrokerStats', handleReloadStats)
     }
@@ -99,20 +100,36 @@ export default function Dashboard() {
 
   // Nota: OverviewSection ahora carga datos reales desde Firestore
 
+  const handleLogout = async () => {
+    try {
+      if (userProfile) {
+        await logLogout(
+          userProfile.uid,
+          userProfile.email,
+          `${userProfile.Nombre} ${userProfile.Apellido}`
+        )
+      }
+      await signOut(auth)
+      router.push('/')
+    } catch (error) {
+      console.error('Error al cerrar sesión:', error)
+    }
+  }
+
   // --- RENDERIZADO CONDICIONAL ---
   // Función que decide qué componente de sección mostrar según la pestaña activa.
   const renderMainContent = () => {
     switch (activeTab) {
       case 'overview':
         return (
-          <OverviewSection 
+          <OverviewSection
             brokerId={userProfile?.uid || ''}
             setActiveTab={setActiveTab}
           />
         )
       case 'qualifications':
         return (
-          <QualificationsSection 
+          <QualificationsSection
             brokerId={userProfile?.uid || ''}
             setActiveTab={setActiveTab}
             pageSize={pageSize}
@@ -120,7 +137,7 @@ export default function Dashboard() {
         )
       case 'upload':
         return (
-          <UploadSection 
+          <UploadSection
             brokerId={userProfile?.uid || ''}
           />
         )
@@ -128,7 +145,7 @@ export default function Dashboard() {
         return <ReportsSection />
       case 'settings':
         return (
-          <SettingsSection 
+          <SettingsSection
             dateFormat={dateFormat}
             setDateFormat={setDateFormat}
             decimalSeparator={decimalSeparator}
@@ -139,7 +156,7 @@ export default function Dashboard() {
         )
       default:
         return (
-          <OverviewSection 
+          <OverviewSection
             brokerId={userProfile?.uid || ''}
             setActiveTab={setActiveTab}
           />
@@ -163,9 +180,9 @@ export default function Dashboard() {
           {/* Logo y nombre de la aplicación */}
           <div className="flex items-center space-x-3">
             <div className="w-10 h-10 bg-gradient-to-br from-orange-500 to-amber-500 rounded-xl flex items-center justify-center p-1 animate-glow">
-              <Image 
-                src={NUAM_LOGO_PATH} 
-                alt="NUAM" 
+              <Image
+                src={NUAM_LOGO_PATH}
+                alt="NUAM"
                 width={32}
                 height={32}
                 className="w-full h-full object-contain rounded-lg"
@@ -175,9 +192,9 @@ export default function Dashboard() {
               NUAM
             </span>
           </div>
-          
+
           {/* Botón de menú hamburguesa para abrir/cerrar la navegación móvil. */}
-          <button 
+          <button
             className="flex flex-col justify-center items-center w-8 h-8 space-y-1 focus:outline-none relative z-50"
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
           >
@@ -189,12 +206,11 @@ export default function Dashboard() {
       </nav>
 
       {/* --- MENÚ DE NAVEGACIÓN DESPLEGABLE (MÓVIL) --- */}
-      <div 
-        className={`lg:hidden fixed inset-x-0 top-[73px] z-40 transition-all duration-500 transform ${
-          mobileMenuOpen 
-            ? 'translate-y-0 opacity-100' 
-            : '-translate-y-full opacity-0 pointer-events-none'
-        }`}
+      <div
+        className={`lg:hidden fixed inset-x-0 top-[73px] z-40 transition-all duration-500 transform ${mobileMenuOpen
+          ? 'translate-y-0 opacity-100'
+          : '-translate-y-full opacity-0 pointer-events-none'
+          }`}
       >
         <div className="backdrop-blur-2xl bg-black/40 border-b border-white/20">
           <div className="px-6 py-6 space-y-2">
@@ -205,18 +221,17 @@ export default function Dashboard() {
                   setActiveTab(item.id as ActiveTab)
                   setMobileMenuOpen(false)
                 }}
-                className={`w-full text-left px-4 py-3 rounded-xl transition-all flex items-center space-x-3 ${
-                  activeTab === item.id 
-                    ? 'bg-gradient-to-r from-orange-600/30 to-amber-600/30 text-orange-300' 
-                    : 'text-white/90 hover:text-orange-400 hover:bg-white/10'
-                }`}
+                className={`w-full text-left px-4 py-3 rounded-xl transition-all flex items-center space-x-3 ${activeTab === item.id
+                  ? 'bg-gradient-to-r from-orange-600/30 to-amber-600/30 text-orange-300'
+                  : 'text-white/90 hover:text-orange-400 hover:bg-white/10'
+                  }`}
               >
                 <span className="text-xl">{item.icon}</span>
                 <span>{item.label}</span>
               </button>
             ))}
             <button
-              onClick={() => router.push('/')}
+              onClick={handleLogout}
               className="w-full px-4 py-3 bg-gradient-to-r from-red-600 to-red-700 rounded-xl hover:from-red-700 hover:to-red-800 transition-all text-center mt-4"
             >
               Cerrar Sesión
@@ -227,7 +242,7 @@ export default function Dashboard() {
 
       {/* Overlay oscuro que se muestra detrás del menú móvil para enfocar la atención. */}
       {mobileMenuOpen && (
-        <div 
+        <div
           className="lg:hidden fixed inset-0 bg-black/50 backdrop-blur-sm z-30"
           onClick={() => setMobileMenuOpen(false)}
         />
@@ -241,9 +256,9 @@ export default function Dashboard() {
             {/* Logo y nombre en el sidebar */}
             <div className="flex items-center space-x-2 mb-8">
               <div className="w-10 h-10 bg-gradient-to-br from-orange-500 to-amber-500 rounded-xl flex items-center justify-center p-1 animate-glow">
-                <Image 
-                  src={NUAM_LOGO_PATH} 
-                  alt="NUAM" 
+                <Image
+                  src={NUAM_LOGO_PATH}
+                  alt="NUAM"
                   width={32}
                   height={32}
                   className="w-full h-full object-contain rounded-lg"
@@ -260,11 +275,10 @@ export default function Dashboard() {
                 <button
                   key={item.id}
                   onClick={() => setActiveTab(item.id as ActiveTab)}
-                  className={`w-full text-left px-4 py-3 rounded-xl transition-all duration-300 flex items-center space-x-3 ${
-                    activeTab === item.id 
-                      ? 'bg-gradient-to-r from-orange-600/30 to-amber-600/30 text-orange-300 transform scale-105' 
-                      : 'hover:bg-white/10 text-white hover:transform hover:scale-102'
-                  }`}
+                  className={`w-full text-left px-4 py-3 rounded-xl transition-all duration-300 flex items-center space-x-3 ${activeTab === item.id
+                    ? 'bg-gradient-to-r from-orange-600/30 to-amber-600/30 text-orange-300 transform scale-105'
+                    : 'hover:bg-white/10 text-white hover:transform hover:scale-102'
+                    }`}
                   aria-label={`Navegar a ${item.label}`}
                 >
                   <span className="text-xl">{item.icon}</span>
@@ -277,7 +291,7 @@ export default function Dashboard() {
           {/* Botón para cerrar sesión, fijo en la parte inferior del sidebar. */}
           <div className="p-6 border-t border-white/10">
             <button
-              onClick={() => router.push('/')} // Navega a la página de inicio al hacer clic.
+              onClick={handleLogout} // Navega a la página de inicio al hacer clic.
               className="w-full px-4 py-3 backdrop-blur-xl bg-red-500/20 border border-red-500/50 rounded-xl hover:bg-red-500/30 transition-all hover:scale-105 focus:outline-none focus:ring-2 focus:ring-red-500"
               aria-label="Cerrar sesión"
             >
@@ -291,7 +305,7 @@ export default function Dashboard() {
           {/* Cabecera del contenido principal */}
           <header className="mb-6 lg:mb-8 pt-4 md:pt-0">
             <h1 className="text-2xl lg:text-3xl font-bold mb-2">
-              Bienvenido, Corredor
+              Bienvenido, {userProfile?.Nombre ? userProfile.Nombre.split(' ')[0] : 'Corredor'}
             </h1>
             <p className="text-gray-400 text-sm lg:text-base">Sistema de Gestión de Calificaciones Tributarias</p>
           </header>
@@ -299,29 +313,29 @@ export default function Dashboard() {
           {/* Tarjetas de estadísticas rápidas - DATOS REALES */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-6 mb-6 lg:mb-8">
             {[
-              { 
-                label: 'Calificaciones Activas', 
-                value: loadingStats ? '...' : brokerStats.totalQualifications.toLocaleString(), 
-                change: 'Real-time', 
-                color: 'from-orange-600 to-amber-600' 
+              {
+                label: 'Calificaciones Activas',
+                value: loadingStats ? '...' : brokerStats.totalQualifications.toLocaleString(),
+                change: 'Real-time',
+                color: 'from-orange-600 to-amber-600'
               },
-              { 
-                label: 'Factores Validados', 
-                value: loadingStats ? '...' : brokerStats.validatedFactors.toLocaleString(), 
-                change: 'Real-time', 
-                color: 'from-amber-600 to-yellow-600' 
+              {
+                label: 'Factores Validados',
+                value: loadingStats ? '...' : brokerStats.validatedFactors.toLocaleString(),
+                change: 'Real-time',
+                color: 'from-amber-600 to-yellow-600'
               },
-              { 
-                label: 'Reportes Generados', 
-                value: loadingStats ? '...' : brokerStats.reportsGenerated.toString(), 
-                change: 'Real-time', 
-                color: 'from-red-600 to-orange-600' 
+              {
+                label: 'Reportes Generados',
+                value: loadingStats ? '...' : brokerStats.reportsGenerated.toString(),
+                change: 'Real-time',
+                color: 'from-red-600 to-orange-600'
               },
-              { 
-                label: 'Tasa de Éxito', 
-                value: loadingStats ? '...' : `${brokerStats.successRate}%`, 
-                change: 'Real-time', 
-                color: 'from-orange-500 to-red-500' 
+              {
+                label: 'Tasa de Éxito',
+                value: loadingStats ? '...' : `${brokerStats.successRate}%`,
+                change: 'Real-time',
+                color: 'from-orange-500 to-red-500'
               }
             ].map((stat, i) => (
               <div key={i} className="backdrop-blur-xl bg-white/5 border border-white/10 rounded-2xl p-4 lg:p-6 hover:bg-white/10 transition-all">

@@ -4,6 +4,7 @@ import { useState } from "react";
 import { auth, db } from "../firebase/config";
 import { createUserWithEmailAndPassword } from "firebase/auth";
 import { doc, setDoc, serverTimestamp } from "firebase/firestore";
+import CustomDropdown from './CustomDropdown';
 
 type Props = {
   open: boolean;
@@ -135,11 +136,15 @@ export default function RegisterModal({ open, onClose }: Props) {
                 <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500/50 transition-all" placeholder="••••••••" minLength={6} required />
               </div>
               <div>
-                <label className="block text-sm font-medium mb-2">Rol</label>
-                <select value={rol} onChange={(e) => setRol(e.target.value)} className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500/50 transition-all" required>
-                  <option value="Corredor">Corredor</option>
-                  <option value="Administrador">Administrador</option>
-                </select>
+                <CustomDropdown
+                  label="Rol"
+                  value={rol}
+                  onChange={(val) => setRol(val as string)}
+                  options={[
+                    { value: "Corredor", label: "Corredor" },
+                    { value: "Administrador", label: "Administrador" },
+                  ]}
+                />
               </div>
               {error && <div className="bg-red-500/20 border border-red-500/50 text-red-400 text-sm rounded-xl p-3 text-center">{error}</div>}
               <button type="submit" disabled={loading} className="w-full py-3 bg-gradient-to-r from-orange-600 to-amber-600 rounded-xl hover:from-orange-700 hover:to-amber-700 transition-all disabled:opacity-50 font-semibold">

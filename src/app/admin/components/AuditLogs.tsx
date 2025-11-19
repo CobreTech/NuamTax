@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { collection, getDocs, query, orderBy, limit, where, Timestamp } from 'firebase/firestore';
 import { db } from '@/app/firebase/config';
 import Icons from '@/app/utils/icons';
+import CustomDropdown from '@/app/components/CustomDropdown';
 
 interface AuditLog {
   id: string;
@@ -47,14 +48,14 @@ export default function AuditLogs() {
   const loadLogs = async () => {
     try {
       setLoading(true);
-      
+
       // Intentar cargar logs de auditoría
       const logsQuery = query(
         collection(db, 'auditLogs'),
         orderBy('timestamp', 'desc'),
         limit(100)
       );
-      
+
       const logsSnap = await getDocs(logsQuery);
       const logsData = logsSnap.docs.map(doc => ({
         id: doc.id,
@@ -212,7 +213,7 @@ export default function AuditLogs() {
       </div>
 
       {/* Filtros */}
-      <div className="backdrop-blur-xl bg-white/5 border border-white/10 rounded-2xl p-4 lg:p-6">
+      <div className="relative z-10 backdrop-blur-xl bg-white/5 border border-white/10 rounded-2xl p-4 lg:p-6">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div>
             <label className="block text-sm font-medium mb-2">Buscar</label>
@@ -226,34 +227,34 @@ export default function AuditLogs() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium mb-2">Acción</label>
-            <select
+            <CustomDropdown
+              label="Acción"
               value={filterAction}
-              onChange={(e) => setFilterAction(e.target.value)}
-              className="w-full px-4 py-2 bg-white/10 border border-white/20 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500"
-            >
-              <option value="all">Todas las Acciones</option>
-              <option value="LOGIN">Login</option>
-              <option value="LOGOUT">Logout</option>
-              <option value="CREATE">Crear</option>
-              <option value="UPDATE">Actualizar</option>
-              <option value="DELETE">Eliminar</option>
-              <option value="UPLOAD">Carga Masiva</option>
-            </select>
+              onChange={(val) => setFilterAction(val as string)}
+              options={[
+                { value: "all", label: "Todas las Acciones" },
+                { value: "LOGIN", label: "Login" },
+                { value: "LOGOUT", label: "Logout" },
+                { value: "CREATE", label: "Crear" },
+                { value: "UPDATE", label: "Actualizar" },
+                { value: "DELETE", label: "Eliminar" },
+                { value: "UPLOAD", label: "Carga Masiva" },
+              ]}
+            />
           </div>
 
           <div>
-            <label className="block text-sm font-medium mb-2">Recurso</label>
-            <select
+            <CustomDropdown
+              label="Recurso"
               value={filterResource}
-              onChange={(e) => setFilterResource(e.target.value)}
-              className="w-full px-4 py-2 bg-white/10 border border-white/20 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500"
-            >
-              <option value="all">Todos los Recursos</option>
-              <option value="system">Sistema</option>
-              <option value="user">Usuario</option>
-              <option value="qualification">Calificación</option>
-            </select>
+              onChange={(val) => setFilterResource(val as string)}
+              options={[
+                { value: "all", label: "Todos los Recursos" },
+                { value: "system", label: "Sistema" },
+                { value: "user", label: "Usuario" },
+                { value: "qualification", label: "Calificación" },
+              ]}
+            />
           </div>
         </div>
 

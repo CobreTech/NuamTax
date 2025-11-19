@@ -5,6 +5,7 @@ import { doc, updateDoc, getDoc } from 'firebase/firestore';
 import { db } from '@/app/firebase/config';
 import { useAuth } from '@/app/context/AuthContext';
 import { logUserUpdated } from '@/app/services/auditService';
+import CustomDropdown from '@/app/components/CustomDropdown';
 
 interface EditUserModalProps {
   open: boolean;
@@ -37,7 +38,7 @@ export default function EditUserModal({ open, onClose, userId, onSuccess }: Edit
     try {
       setLoadingData(true);
       const userDoc = await getDoc(doc(db, 'users', userId));
-      
+
       if (userDoc.exists()) {
         const data = userDoc.data();
         setNombre(data.Nombre || '');
@@ -62,7 +63,7 @@ export default function EditUserModal({ open, onClose, userId, onSuccess }: Edit
 
     try {
       const userRef = doc(db, 'users', userId);
-      
+
       const updatedData = {
         Nombre: nombre,
         Apellido: apellido,
@@ -172,15 +173,15 @@ export default function EditUserModal({ open, onClose, userId, onSuccess }: Edit
               </div>
 
               <div>
-                <label className="block text-sm font-medium mb-2">Rol</label>
-                <select
+                <CustomDropdown
+                  label="Rol"
                   value={rol}
-                  onChange={(e) => setRol(e.target.value as 'Corredor' | 'Administrador')}
-                  className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500/50"
-                >
-                  <option value="Corredor">Corredor</option>
-                  <option value="Administrador">Administrador</option>
-                </select>
+                  onChange={(val) => setRol(val as 'Corredor' | 'Administrador')}
+                  options={[
+                    { value: "Corredor", label: "Corredor" },
+                    { value: "Administrador", label: "Administrador" },
+                  ]}
+                />
               </div>
 
               {error && (

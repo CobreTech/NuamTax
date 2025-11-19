@@ -21,19 +21,21 @@ import { generateDJ1948PDF, generateDJ1948CSV, generateDJ1948Excel, getContribuy
 import { logDataExport } from '../../services/auditService'
 import { validateAndFormatRUT } from '../../utils/rutUtils'
 import Icons from '../../utils/icons'
+import CustomDropdown from '../../components/CustomDropdown'
+import CustomDatePicker from '../../components/CustomDatePicker'
 
 export default function ReportsSection() {
   const { userProfile } = useAuth()
   const [qualifications, setQualifications] = useState<TaxQualification[]>([])
   const [loading, setLoading] = useState(true)
   const [generating, setGenerating] = useState<string | null>(null)
-  
+
   // Filtros
   const [eventFilter, setEventFilter] = useState('')
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
   const [anioTributario, setAnioTributario] = useState(new Date().getFullYear().toString())
-  
+
   // Datos adicionales para DJ1948
   const [showDJ1948Modal, setShowDJ1948Modal] = useState(false)
   const [contribuyentes, setContribuyentes] = useState<Array<{ rut: string; count: number; rutClean?: string }>>([])
@@ -62,16 +64,16 @@ export default function ReportsSection() {
       try {
         const data = await getQualificationsByBrokerId(userProfile.uid, 1000)
         setQualifications(data)
-        
+
         // Detectar contribuyentes únicos
         const contribs = getContribuyentesFromQualifications(data)
         setContribuyentes(contribs)
-        
+
         // Si hay un solo contribuyente, seleccionarlo automáticamente
         if (contribs.length === 1) {
           setSelectedContribuyente(contribs[0].rutClean || contribs[0].rut)
         }
-        
+
         // Inicializar RUT receptor con el RUT del usuario si existe
         if (userProfile.Rut) {
           const rutResult = validateAndFormatRUT(userProfile.Rut)
@@ -104,7 +106,7 @@ export default function ReportsSection() {
       toDate.setHours(23, 59, 59, 999)
       if (qualDate > toDate) return false
     }
-    
+
     // Filtro por evento de capital (por tipo de calificación)
     if (eventFilter) {
       const tipoCalif = qual.tipoCalificacion?.toLowerCase() || ''
@@ -138,7 +140,7 @@ export default function ReportsSection() {
 
       // Usar datos adicionales si están disponibles, sino usar valores por defecto
       const rutReceptorClean = dj1948Data.rutReceptor || (userProfile.Rut ? validateAndFormatRUT(userProfile.Rut).clean : '')
-      
+
       const additionalData = {
         domicilio: dj1948Data.domicilio || undefined,
         comuna: dj1948Data.comuna || undefined,
@@ -185,43 +187,36 @@ export default function ReportsSection() {
   return (
     <div className="space-y-4 lg:space-y-6">
       {/* --- PANEL DE FILTROS --- */}
-      <div className="backdrop-blur-xl bg-white/5 border border-white/10 rounded-2xl p-4 lg:p-6">
+      <div className="backdrop-blur-xl bg-white/5 border border-white/10 rounded-2xl p-4 lg:p-6 relative z-30">
         <h2 className="text-lg lg:text-xl font-bold mb-4">Filtros de Reporte</h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-4">
           <div>
-            <label htmlFor="event-filter" className="block text-xs lg:text-sm font-medium mb-2">Evento de Capital</label>
-            <select 
-              id="event-filter"
-              value={eventFilter}
-              onChange={(e) => setEventFilter(e.target.value)}
-              className="w-full px-3 lg:px-4 py-2 bg-slate-800/50 border border-white/30 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500 text-sm lg:text-base text-white"
-            >
-              <option value="">Todos los eventos</option>
-              <option value="dividend">Dividendos</option>
-              <option value="split">División de acciones</option>
-              <option value="merger">Fusión</option>
-            </select>
+            <div>
+              <CustomDropdown
+                label="Evento de Capital"
+                value={eventFilter}
+                onChange={(val) => setEventFilter(val as string)}
+                options={[
+                  { value: "", label: "Todos los eventos" },
+                  { value: "dividend", label: "Dividendos" },
+                  { value: "split", label: "División de acciones" },
+                  { value: "merger", label: "Fusión" },
+                ]}
+              />
+            </div>
           </div>
           <div>
-            <label htmlFor="date-from" className="block text-xs lg:text-sm font-medium mb-2">Fecha Desde</label>
-            <input
-              id="date-from"
-              type="date"
+            <CustomDatePicker
+              label="Fecha Desde"
               value={dateFrom}
-              onChange={(e) => setDateFrom(e.target.value)}
-              className="w-full px-3 lg:px-4 py-2 bg-slate-800/50 border border-white/30 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500 text-sm lg:text-base text-white"
-              style={{ colorScheme: 'dark' }}
+              onChange={setDateFrom}
             />
           </div>
           <div>
-            <label htmlFor="date-to" className="block text-xs lg:text-sm font-medium mb-2">Fecha Hasta</label>
-            <input
-              id="date-to"
-              type="date"
+            <CustomDatePicker
+              label="Fecha Hasta"
               value={dateTo}
-              onChange={(e) => setDateTo(e.target.value)}
-              className="w-full px-3 lg:px-4 py-2 bg-slate-800/50 border border-white/30 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500 text-sm lg:text-base text-white"
-              style={{ colorScheme: 'dark' }}
+              onChange={setDateTo}
             />
           </div>
           <div>
@@ -233,7 +228,7 @@ export default function ReportsSection() {
               onChange={(e) => setAnioTributario(e.target.value)}
               min="2020"
               max={new Date().getFullYear() + 1}
-              className="w-full px-3 lg:px-4 py-2 bg-slate-800/50 border border-white/30 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500 text-sm lg:text-base text-white"
+              className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl hover:bg-white/15 focus:outline-none focus:ring-2 focus:ring-orange-500/50 text-white placeholder-gray-400 transition-all duration-200"
             />
           </div>
         </div>
@@ -255,7 +250,7 @@ export default function ReportsSection() {
             </div>
             <Icons.File className="w-8 h-8 lg:w-10 lg:h-10 text-purple-400" />
           </div>
-          
+
           {loading ? (
             <div className="text-center py-4 text-gray-400">Cargando calificaciones...</div>
           ) : filteredQualifications.length === 0 ? (
@@ -349,32 +344,24 @@ export default function ReportsSection() {
               {/* Selector de Contribuyente */}
               {contribuyentes.length > 1 && (
                 <div className="mb-4 p-4 bg-blue-900/20 border border-blue-500/30 rounded-xl">
-                  <label className="block text-sm font-medium mb-2 text-gray-200">
-                    Contribuyente para el Reporte *
-                  </label>
-                  <select
+                  <CustomDropdown
+                    label="Contribuyente para el Reporte *"
                     value={selectedContribuyente}
-                    onChange={(e) => setSelectedContribuyente(e.target.value)}
-                    className="w-full px-4 py-2 bg-slate-800/50 border border-white/30 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500 text-white"
-                    style={{ colorScheme: 'dark' }}
-                    required
-                  >
-                    <option value="">Seleccione un contribuyente</option>
-                    {contribuyentes.map((contrib) => {
-                      const rutValue = contrib.rutClean || contrib.rut
-                      return (
-                        <option key={rutValue} value={rutValue}>
-                          {contrib.rut} ({contrib.count} calificación{contrib.count !== 1 ? 'es' : ''})
-                        </option>
-                      )
-                    })}
-                  </select>
+                    onChange={(val) => setSelectedContribuyente(val as string)}
+                    options={[
+                      { value: "", label: "Seleccione un contribuyente" },
+                      ...contribuyentes.map((contrib) => ({
+                        value: contrib.rutClean || contrib.rut,
+                        label: `${contrib.rut} (${contrib.count} calificación${contrib.count !== 1 ? 'es' : ''})`
+                      }))
+                    ]}
+                  />
                   <p className="text-xs text-gray-400 mt-2">
                     El DJ1948 se genera por contribuyente. Seleccione el contribuyente para el cual generar el reporte.
                   </p>
                 </div>
               )}
-              
+
               {contribuyentes.length === 1 && (
                 <div className="mb-4 p-4 bg-green-900/20 border border-green-500/30 rounded-xl">
                   <p className="text-sm text-gray-200">
@@ -422,7 +409,7 @@ export default function ReportsSection() {
                     onChange={(e) => {
                       const inputValue = e.target.value
                       setRutReceptorFormatted(inputValue)
-                      
+
                       // Validar y formatear en tiempo real
                       if (inputValue.trim() === '') {
                         setDj1948Data({ ...dj1948Data, rutReceptor: '' })
@@ -430,7 +417,7 @@ export default function ReportsSection() {
                       } else {
                         const rutResult = validateAndFormatRUT(inputValue)
                         setRutReceptorFormatted(rutResult.formatted)
-                        
+
                         if (rutResult.isValid) {
                           setDj1948Data({ ...dj1948Data, rutReceptor: rutResult.clean })
                           setRutReceptorError(null)
@@ -450,9 +437,8 @@ export default function ReportsSection() {
                         }
                       }
                     }}
-                    className={`w-full px-4 py-2 bg-slate-800/50 border rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500 text-white placeholder-gray-400 ${
-                      rutReceptorError ? 'border-red-500' : 'border-white/30'
-                    }`}
+                    className={`w-full px-4 py-2 bg-slate-800/50 border rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500 text-white placeholder-gray-400 ${rutReceptorError ? 'border-red-500' : 'border-white/30'
+                      }`}
                     placeholder={userProfile?.Rut ? `Ej: ${userProfile.Rut}` : 'Ej: 12.345.678-9 o 12345678-9'}
                   />
                   {rutReceptorError && (
@@ -471,16 +457,15 @@ export default function ReportsSection() {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium mb-2 text-gray-200">Tipo de Propietario</label>
-                  <select
+                  <CustomDropdown
+                    label="Tipo de Propietario"
                     value={dj1948Data.tipoPropietario}
-                    onChange={(e) => setDj1948Data({ ...dj1948Data, tipoPropietario: parseInt(e.target.value) as 1 | 2 })}
-                    className="w-full px-4 py-2 bg-slate-800/50 border border-white/30 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500 text-white"
-                    style={{ colorScheme: 'dark' }}
-                  >
-                    <option value={2}>2 - Nudo Propietario</option>
-                    <option value={1}>1 - Usufructuario</option>
-                  </select>
+                    onChange={(val) => setDj1948Data({ ...dj1948Data, tipoPropietario: parseInt(val as string) as 1 | 2 })}
+                    options={[
+                      { value: 2, label: "2 - Nudo Propietario" },
+                      { value: 1, label: "1 - Usufructuario" },
+                    ]}
+                  />
                 </div>
               </div>
             </div>

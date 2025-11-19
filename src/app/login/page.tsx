@@ -6,7 +6,7 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { NUAM_LOGO_PATH } from '../utils/paths'
 import { auth, db } from '../firebase/config'
-import { signInWithEmailAndPassword, sendPasswordResetEmail } from 'firebase/auth'
+import { signInWithEmailAndPassword, sendPasswordResetEmail, setPersistence, browserLocalPersistence, browserSessionPersistence, onAuthStateChanged } from 'firebase/auth'
 import { doc, getDoc } from 'firebase/firestore'
 import RegisterModal from '../components/RegisterModal'
 import AdminAuthModal from '../components/AdminAuthModal'
@@ -23,6 +23,7 @@ function LoginContent() {
   const [loading, setLoading] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState('')
+  const [rememberMe, setRememberMe] = useState(false)
 
   // Estados para el modal de "Olvidé mi contraseña"
   const [showForgotPasswordModal, setShowForgotPasswordModal] = useState(false)
@@ -30,33 +31,60 @@ function LoginContent() {
   const [resetLoading, setResetLoading] = useState(false)
   const [resetSent, setResetSent] = useState(false)
   const [resetError, setResetError] = useState('')
-  
+
   // Estados para registro con autenticación de admin
   const [showAdminAuthModal, setShowAdminAuthModal] = useState(false)
   const [showRegisterModal, setShowRegisterModal] = useState(false)
+
+  // Efecto para redirigir si el usuario ya está autenticado
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      if (user) {
+        try {
+          const userDocRef = doc(db, 'users', user.uid)
+          const userDocSnap = await getDoc(userDocRef)
+
+          if (userDocSnap.exists()) {
+            const userData = userDocSnap.data()
+            const userRole = userData.rol
+            const dashboardRoute = getDashboardRoute(userRole)
+            console.log(`[AUTH] Usuario ya autenticado. Redirigiendo a: ${dashboardRoute}`)
+            router.push(dashboardRoute)
+          }
+        } catch (error) {
+          console.error("[AUTH] Error verificando usuario existente:", error)
+        }
+      }
+    })
+
+    return () => unsubscribe()
+  }, [router])
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
     setError('')
     try {
+      // Configurar persistencia según el checkbox "Recordarme"
+      await setPersistence(auth, rememberMe ? browserLocalPersistence : browserSessionPersistence)
+
       const userCredential = await signInWithEmailAndPassword(auth, email, password)
-      
+
       // Cargar perfil del usuario desde Firestore para obtener el rol
       const userDocRef = doc(db, 'users', userCredential.user.uid)
       const userDocSnap = await getDoc(userDocRef)
-      
+
       if (userDocSnap.exists()) {
         const userData = userDocSnap.data()
         const userRole = userData.rol
-        
+
         // Registrar evento de login en auditoría
         await logLogin(
           userCredential.user.uid,
           userCredential.user.email || userData.email,
           `${userData.Nombre} ${userData.Apellido}`
         )
-        
+
         // Redirigir según el rol del usuario
         const dashboardRoute = getDashboardRoute(userRole)
         console.log(`✅ Login exitoso | Rol: ${userRole} | Redirigiendo a: ${dashboardRoute}`)
@@ -155,7 +183,15 @@ function LoginContent() {
           </div>
           {error && <div className="bg-red-500/20 border border-red-500/50 text-red-400 text-sm rounded-xl p-3 text-center">{error}</div>}
           <div className="flex items-center justify-between">
-            <label className="flex items-center"><input type="checkbox" className="mr-2 rounded" /><span className="text-sm text-gray-300">Recordarme</span></label>
+            <label className="flex items-center cursor-pointer">
+              <input
+                type="checkbox"
+                className="mr-2 rounded w-4 h-4 accent-orange-500"
+                checked={rememberMe}
+                onChange={(e) => setRememberMe(e.target.checked)}
+              />
+              <span className="text-sm text-gray-300">Recordarme</span>
+            </label>
             <button type="button" onClick={openModal} className="text-sm text-orange-400 hover:text-orange-300 bg-transparent border-none p-0 cursor-pointer">
               ¿Olvidaste tu contraseña?
             </button>

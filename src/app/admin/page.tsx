@@ -12,6 +12,7 @@ import Charts from './components/Charts';
 import BackupManagement from './components/BackupManagement';
 import Icons from '../utils/icons';
 import { VERSION_INFO } from '../utils/version';
+import { logLogout } from '../services/auditService';
 
 type ActiveSection = 'users' | 'audit' | 'system' | 'charts' | 'backup';
 
@@ -34,6 +35,13 @@ export default function AdminDashboard() {
 
   const handleLogout = async () => {
     try {
+      if (userProfile) {
+        await logLogout(
+          userProfile.uid,
+          userProfile.email,
+          `${userProfile.Nombre} ${userProfile.Apellido}`
+        )
+      }
       await signOut(auth);
       router.push('/login');
     } catch (error) {
@@ -106,11 +114,10 @@ export default function AdminDashboard() {
               <button
                 key={item.id}
                 onClick={() => setActiveSection(item.id)}
-                className={`w-full flex items-center space-x-3 px-4 py-3 rounded-xl transition-all ${
-                  activeSection === item.id
+                className={`w-full flex items-center space-x-3 px-4 py-3 rounded-xl transition-all ${activeSection === item.id
                     ? 'bg-gradient-to-r from-orange-600 to-amber-600 shadow-lg'
                     : 'hover:bg-white/10'
-                }`}
+                  }`}
               >
                 <item.Icon className="w-5 h-5" />
                 <span className="font-medium">{item.label}</span>
@@ -147,11 +154,10 @@ export default function AdminDashboard() {
                         setActiveSection(item.id);
                         setSidebarOpen(false);
                       }}
-                      className={`w-full flex items-center space-x-3 px-4 py-3 rounded-xl transition-all ${
-                        activeSection === item.id
+                      className={`w-full flex items-center space-x-3 px-4 py-3 rounded-xl transition-all ${activeSection === item.id
                           ? 'bg-gradient-to-r from-orange-600 to-amber-600 shadow-lg'
                           : 'hover:bg-white/10'
-                      }`}
+                        }`}
                     >
                       <item.Icon className="w-5 h-5" />
                       <span className="font-medium">{item.label}</span>

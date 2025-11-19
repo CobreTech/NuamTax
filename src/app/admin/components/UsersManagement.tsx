@@ -9,6 +9,7 @@ import RegisterModal from '@/app/components/RegisterModal';
 import EditUserModal from './EditUserModal';
 import { logUserToggleActive, logPasswordReset } from '@/app/services/auditService';
 import Icons from '@/app/utils/icons';
+import CustomDropdown from '@/app/components/CustomDropdown';
 
 interface User {
   uid: string;
@@ -90,7 +91,7 @@ export default function UsersManagement() {
   };
 
   const handleToggleActive = async (user: User) => {
-    const confirmMessage = user.activo 
+    const confirmMessage = user.activo
       ? `¿Desactivar a ${user.Nombre} ${user.Apellido}? Este usuario no podrá iniciar sesión.`
       : `¿Activar a ${user.Nombre} ${user.Apellido}?`;
 
@@ -99,7 +100,7 @@ export default function UsersManagement() {
     try {
       const userRef = doc(db, 'users', user.uid);
       const newActiveStatus = !user.activo;
-      
+
       await updateDoc(userRef, {
         activo: newActiveStatus,
       });
@@ -117,7 +118,7 @@ export default function UsersManagement() {
       }
 
       // Actualizar estado local
-      setUsers(users.map(u => 
+      setUsers(users.map(u =>
         u.uid === user.uid ? { ...u, activo: newActiveStatus } : u
       ));
 
@@ -185,7 +186,7 @@ export default function UsersManagement() {
       </div>
 
       {/* Filtros y búsqueda */}
-      <div className="backdrop-blur-xl bg-white/5 border border-white/10 rounded-2xl p-4 lg:p-6">
+      <div className="backdrop-blur-xl bg-white/5 border border-white/10 rounded-2xl p-4 lg:p-6 relative z-20">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {/* Búsqueda */}
           <div>
@@ -201,16 +202,16 @@ export default function UsersManagement() {
 
           {/* Filtro por rol */}
           <div>
-            <label className="block text-sm font-medium mb-2">Filtrar por Rol</label>
-            <select
+            <CustomDropdown
+              label="Filtrar por Rol"
               value={filterRole}
-              onChange={(e) => setFilterRole(e.target.value as any)}
-              className="w-full px-4 py-2 bg-white/10 border border-white/20 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500"
-            >
-              <option value="all">Todos los Roles</option>
-              <option value="Corredor">Corredor</option>
-              <option value="Administrador">Administrador</option>
-            </select>
+              onChange={(val) => setFilterRole(val as any)}
+              options={[
+                { value: 'all', label: 'Todos los Roles' },
+                { value: 'Corredor', label: 'Corredor' },
+                { value: 'Administrador', label: 'Administrador' }
+              ]}
+            />
           </div>
         </div>
 
@@ -261,20 +262,18 @@ export default function UsersManagement() {
                   <td className="px-6 py-4 text-sm">{user.Rut}</td>
                   <td className="px-6 py-4 text-sm">{user.email}</td>
                   <td className="px-6 py-4">
-                    <span className={`px-3 py-1 rounded-full text-xs font-medium ${
-                      user.rol === 'Administrador'
-                        ? 'bg-purple-500/20 border border-purple-500/50 text-purple-400'
-                        : 'bg-blue-500/20 border border-blue-500/50 text-blue-400'
-                    }`}>
+                    <span className={`px-3 py-1 rounded-full text-xs font-medium ${user.rol === 'Administrador'
+                      ? 'bg-purple-500/20 border border-purple-500/50 text-purple-400'
+                      : 'bg-blue-500/20 border border-blue-500/50 text-blue-400'
+                      }`}>
                       {user.rol}
                     </span>
                   </td>
                   <td className="px-6 py-4">
-                    <span className={`px-3 py-1 rounded-full text-xs font-medium ${
-                      user.activo
-                        ? 'bg-green-500/20 border border-green-500/50 text-green-400'
-                        : 'bg-red-500/20 border border-red-500/50 text-red-400'
-                    }`}>
+                    <span className={`px-3 py-1 rounded-full text-xs font-medium ${user.activo
+                      ? 'bg-green-500/20 border border-green-500/50 text-green-400'
+                      : 'bg-red-500/20 border border-red-500/50 text-red-400'
+                      }`}>
                       {user.activo ? '✓ Activo' : '✕ Inactivo'}
                     </span>
                   </td>
@@ -296,11 +295,10 @@ export default function UsersManagement() {
                       </button>
                       <button
                         onClick={() => handleToggleActive(user)}
-                        className={`px-3 py-1 rounded-lg text-xs font-medium transition-all ${
-                          user.activo
-                            ? 'bg-red-500/20 border border-red-500/50 text-red-400 hover:bg-red-500/30'
-                            : 'bg-green-500/20 border border-green-500/50 text-green-400 hover:bg-green-500/30'
-                        }`}
+                        className={`px-3 py-1 rounded-lg text-xs font-medium transition-all ${user.activo
+                          ? 'bg-red-500/20 border border-red-500/50 text-red-400 hover:bg-red-500/30'
+                          : 'bg-green-500/20 border border-green-500/50 text-green-400 hover:bg-green-500/30'
+                          }`}
                         title={user.activo ? 'Desactivar usuario' : 'Activar usuario'}
                       >
                         {user.activo ? <Icons.Lock className="w-4 h-4" /> : <Icons.Check className="w-4 h-4" />}
@@ -323,21 +321,19 @@ export default function UsersManagement() {
                   <p className="text-sm text-gray-400">{user.email}</p>
                   <p className="text-xs text-gray-500 mt-1">{user.Rut}</p>
                 </div>
-                <span className={`px-3 py-1 rounded-full text-xs font-medium ${
-                  user.rol === 'Administrador'
-                    ? 'bg-purple-500/20 border border-purple-500/50 text-purple-400'
-                    : 'bg-blue-500/20 border border-blue-500/50 text-blue-400'
-                }`}>
+                <span className={`px-3 py-1 rounded-full text-xs font-medium ${user.rol === 'Administrador'
+                  ? 'bg-purple-500/20 border border-purple-500/50 text-purple-400'
+                  : 'bg-blue-500/20 border border-blue-500/50 text-blue-400'
+                  }`}>
                   {user.rol}
                 </span>
               </div>
 
               <div className="flex items-center justify-between pt-2">
-                <span className={`px-3 py-1 rounded-full text-xs font-medium ${
-                  user.activo
-                    ? 'bg-green-500/20 border border-green-500/50 text-green-400'
-                    : 'bg-red-500/20 border border-red-500/50 text-red-400'
-                }`}>
+                <span className={`px-3 py-1 rounded-full text-xs font-medium ${user.activo
+                  ? 'bg-green-500/20 border border-green-500/50 text-green-400'
+                  : 'bg-red-500/20 border border-red-500/50 text-red-400'
+                  }`}>
                   {user.activo ? '✓ Activo' : '✕ Inactivo'}
                 </span>
                 <div className="flex items-center gap-2">
@@ -355,11 +351,10 @@ export default function UsersManagement() {
                   </button>
                   <button
                     onClick={() => handleToggleActive(user)}
-                    className={`px-3 py-1 rounded-lg text-xs font-medium ${
-                      user.activo
-                        ? 'bg-red-500/20 border border-red-500/50 text-red-400'
-                        : 'bg-green-500/20 border border-green-500/50 text-green-400'
-                    }`}
+                    className={`px-3 py-1 rounded-lg text-xs font-medium ${user.activo
+                      ? 'bg-red-500/20 border border-red-500/50 text-red-400'
+                      : 'bg-green-500/20 border border-green-500/50 text-green-400'
+                      }`}
                   >
                     {user.activo ? <Icons.Lock className="w-4 h-4" /> : <Icons.Check className="w-4 h-4" />}
                   </button>
