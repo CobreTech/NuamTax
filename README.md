@@ -14,6 +14,8 @@
 - ⏳ **Crear/Eliminar calificaciones** (pendientes de implementación)
 - ⏳ **Persistencia de configuración** (pendiente de implementación)
 
+**📋 ENFOQUE ACTUAL:** Completando todas las funcionalidades para Chile antes de expandir a Perú y Colombia. Ver `PLAN_TRABAJO_CHILE.md` para detalles.
+
 Este proyecto es un prototipo funcional de la intranet NUAM (holding regional de bolsas de Santiago, Lima y Colombia) que implementa autenticación, gestión de usuarios y carga masiva de calificaciones tributarias con backend completo en Firebase.
 
 ## 1. Objetivo del Proyecto
@@ -314,6 +316,23 @@ Interfaz de configuración del usuario:
 - ⏳ Optimización de consultas Firestore para grandes volúmenes
 - ⏳ Exportación de reportes con plantillas personalizables
 - ⏳ Notificaciones en tiempo real de cambios importantes
+
+---
+
+## Plan de Trabajo
+
+**📋 Prioridad Actual: Completar Funcionalidades para Chile**
+
+Antes de expandir el sistema a Perú y Colombia, estamos completando todas las funcionalidades pendientes para Chile:
+
+1. **CRUD Completo**: Crear y eliminar calificaciones manualmente
+2. **Persistencia de Configuración**: Guardar preferencias de usuario en Firestore
+3. **Mejoras DJ1948**: Validaciones adicionales y mejor formato
+4. **Otros Reportes**: Calificaciones por Evento, Resumen por Período, Factores por Instrumento
+
+Ver `PLAN_TRABAJO_CHILE.md` para el plan detallado de implementación.
+
+**🌎 Expansión Multi-País**: Una vez completadas todas las funcionalidades para Chile, procederemos con la implementación multi-país según `MULTI_PAIS_INVESTIGACION.md`.
 
 ---
 *CobreTech, cualquier uso sin los debidos créditos a los propietarios del prototipo es ilegal.*

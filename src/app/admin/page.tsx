@@ -11,6 +11,7 @@ import SystemStats from './components/SystemStats';
 import Charts from './components/Charts';
 import BackupManagement from './components/BackupManagement';
 import Icons from '../utils/icons';
+import { VERSION_INFO } from '../utils/version';
 
 type ActiveSection = 'users' | 'audit' | 'system' | 'charts' | 'backup';
 
@@ -120,7 +121,7 @@ export default function AdminDashboard() {
           {/* Info del sistema */}
           <div className="absolute bottom-4 left-4 right-4 p-4 backdrop-blur-xl bg-white/5 border border-white/10 rounded-xl">
             <p className="text-xs text-gray-400 mb-1">Versión del Sistema</p>
-            <p className="text-sm font-semibold">NUAM v1.0.0</p>
+            <p className="text-sm font-semibold">{VERSION_INFO.name} {VERSION_INFO.display}</p>
           </div>
         </aside>
 

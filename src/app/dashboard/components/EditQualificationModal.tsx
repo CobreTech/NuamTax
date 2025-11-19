@@ -10,9 +10,9 @@
 
 import { useState, useEffect } from 'react'
 import { TaxQualification, TaxFactors } from './types'
-import { updateQualification, getQualificationById } from '../../services/firestoreService'
+import { updateQualification, getQualificationById, createQualification } from '../../services/firestoreService'
 import { validateFactorsSum } from '../../services/taxValidationService'
-import { logQualificationUpdated } from '../../services/auditService'
+import { logQualificationUpdated, logQualificationCreated } from '../../services/auditService'
 import { useAuth } from '../../context/AuthContext'
 import { validateAndFormatRUT } from '../../utils/rutUtils'
 import Icons from '../../utils/icons'
@@ -25,14 +25,17 @@ interface EditQualificationModalProps {
   isOpen: boolean
   onClose: () => void
   onSave: () => void
+  mode?: 'create' | 'edit' // Nuevo: modo de operación
 }
 
 export default function EditQualificationModal({
   qualification,
   isOpen,
   onClose,
-  onSave
+  onSave,
+  mode = 'edit' // Por defecto es modo edición
 }: EditQualificationModalProps) {
+  const isCreateMode = mode === 'create'
   const { userProfile } = useAuth()
   const [formData, setFormData] = useState<Partial<TaxQualification>>({})
   const [factores, setFactores] = useState<TaxFactors>({
@@ -46,30 +49,50 @@ export default function EditQualificationModal({
 
   // Cargar datos cuando se abre el modal
   useEffect(() => {
-    if (qualification && isOpen) {
-      setFormData({
-        tipoInstrumento: qualification.tipoInstrumento,
-        mercadoOrigen: qualification.mercadoOrigen,
-        periodo: qualification.periodo,
-        tipoCalificacion: qualification.tipoCalificacion,
-        monto: qualification.monto,
-        esNoInscrita: qualification.esNoInscrita,
-        rutContribuyente: qualification.rutContribuyente
-      })
-      // Formatear RUT contribuyente si existe
-      if (qualification.rutContribuyente) {
-        const rutResult = validateAndFormatRUT(qualification.rutContribuyente)
-        setRutContribuyenteFormatted(rutResult.formatted)
-      } else {
+    if (isOpen) {
+      if (isCreateMode) {
+        // Modo creación: inicializar con valores vacíos
+        setFormData({
+          tipoInstrumento: '',
+          mercadoOrigen: '',
+          periodo: '',
+          tipoCalificacion: '',
+          monto: { valor: 0, moneda: 'CLP' },
+          esNoInscrita: false,
+          rutContribuyente: undefined
+        })
         setRutContribuyenteFormatted('')
+        setFactores({
+          factor8: 0, factor9: 0, factor10: 0, factor11: 0, factor12: 0, factor13: 0,
+          factor14: 0, factor15: 0, factor16: 0, factor17: 0, factor18: 0, factor19: 0
+        })
+        setErrors({})
+      } else if (qualification) {
+        // Modo edición: cargar datos existentes
+        setFormData({
+          tipoInstrumento: qualification.tipoInstrumento,
+          mercadoOrigen: qualification.mercadoOrigen,
+          periodo: qualification.periodo,
+          tipoCalificacion: qualification.tipoCalificacion,
+          monto: qualification.monto,
+          esNoInscrita: qualification.esNoInscrita,
+          rutContribuyente: qualification.rutContribuyente
+        })
+        // Formatear RUT contribuyente si existe
+        if (qualification.rutContribuyente) {
+          const rutResult = validateAndFormatRUT(qualification.rutContribuyente)
+          setRutContribuyenteFormatted(rutResult.formatted)
+        } else {
+          setRutContribuyenteFormatted('')
+        }
+        setFactores(qualification.factores || {
+          factor8: 0, factor9: 0, factor10: 0, factor11: 0, factor12: 0, factor13: 0,
+          factor14: 0, factor15: 0, factor16: 0, factor17: 0, factor18: 0, factor19: 0
+        })
+        setErrors({})
       }
-      setFactores(qualification.factores || {
-        factor8: 0, factor9: 0, factor10: 0, factor11: 0, factor12: 0, factor13: 0,
-        factor14: 0, factor15: 0, factor16: 0, factor17: 0, factor18: 0, factor19: 0
-      })
-      setErrors({})
     }
-  }, [qualification, isOpen])
+  }, [qualification, isOpen, isCreateMode])
 
   // Calcular suma de factores en tiempo real
   useEffect(() => {
@@ -137,61 +160,107 @@ export default function EditQualificationModal({
   }
 
   const handleSave = async () => {
-    if (!qualification || !validateForm()) return
+    if (!validateForm()) return
 
     setIsSaving(true)
     try {
-      // Obtener datos antes de actualizar para el log de auditoría
-      const beforeData = await getQualificationById(qualification.id)
-      
-      // Preparar datos para actualizar, asegurando que monto tenga la estructura correcta
-      const updateData: Partial<TaxQualification> = {
-        tipoInstrumento: formData.tipoInstrumento,
-        mercadoOrigen: formData.mercadoOrigen,
-        periodo: formData.periodo,
-        tipoCalificacion: formData.tipoCalificacion,
-        esNoInscrita: formData.esNoInscrita,
-        factores,
-        monto: formData.monto || { valor: 0, moneda: 'CLP' },
-        rutContribuyente: formData.rutContribuyente || undefined,
-      };
+      if (isCreateMode) {
+        // Modo creación
+        if (!userProfile) {
+          throw new Error('Usuario no autenticado')
+        }
 
-      await updateQualification(qualification.id, updateData)
-      
-      // Obtener datos después de actualizar para el log de auditoría
-      const afterData = await getQualificationById(qualification.id)
-      
-      // Registrar log de auditoría
-      if (userProfile && beforeData && afterData) {
-        await logQualificationUpdated(
-          userProfile.uid,
-          userProfile.email || '',
-          `${userProfile.Nombre} ${userProfile.Apellido}`,
-          qualification.id,
-          {
-            tipoInstrumento: beforeData.tipoInstrumento,
-            mercadoOrigen: beforeData.mercadoOrigen,
-            periodo: beforeData.periodo,
-          },
-          {
-            tipoInstrumento: afterData.tipoInstrumento,
-            mercadoOrigen: afterData.mercadoOrigen,
-            periodo: afterData.periodo,
-          }
-        )
+        const newQualification: TaxQualification = {
+          id: '', // Se generará en createQualification
+          usuarioId: userProfile.uid,
+          tipoInstrumento: formData.tipoInstrumento!,
+          mercadoOrigen: formData.mercadoOrigen!,
+          periodo: formData.periodo!,
+          tipoCalificacion: formData.tipoCalificacion,
+          esNoInscrita: formData.esNoInscrita || false,
+          factores,
+          monto: formData.monto || { valor: 0, moneda: 'CLP' },
+          rutContribuyente: formData.rutContribuyente || undefined,
+          fechaCreacion: new Date(),
+          fechaUltimaModificacion: new Date(),
+        }
+
+        const qualificationId = await createQualification(newQualification)
+        
+        // Registrar log de auditoría
+        if (userProfile) {
+          await logQualificationCreated(
+            userProfile.uid,
+            userProfile.email || '',
+            `${userProfile.Nombre} ${userProfile.Apellido}`,
+            qualificationId,
+            {
+              tipoInstrumento: newQualification.tipoInstrumento,
+              mercadoOrigen: newQualification.mercadoOrigen,
+              periodo: newQualification.periodo,
+            }
+          )
+        }
+      } else {
+        // Modo edición
+        if (!qualification) return
+
+        // Obtener datos antes de actualizar para el log de auditoría
+        const beforeData = await getQualificationById(qualification.id)
+        
+        // Preparar datos para actualizar, asegurando que monto tenga la estructura correcta
+        const updateData: Partial<TaxQualification> = {
+          tipoInstrumento: formData.tipoInstrumento,
+          mercadoOrigen: formData.mercadoOrigen,
+          periodo: formData.periodo,
+          tipoCalificacion: formData.tipoCalificacion,
+          esNoInscrita: formData.esNoInscrita,
+          factores,
+          monto: formData.monto || { valor: 0, moneda: 'CLP' },
+          rutContribuyente: formData.rutContribuyente || undefined,
+        };
+
+        await updateQualification(qualification.id, updateData)
+        
+        // Obtener datos después de actualizar para el log de auditoría
+        const afterData = await getQualificationById(qualification.id)
+        
+        // Registrar log de auditoría
+        if (userProfile && beforeData && afterData) {
+          await logQualificationUpdated(
+            userProfile.uid,
+            userProfile.email || '',
+            `${userProfile.Nombre} ${userProfile.Apellido}`,
+            qualification.id,
+            {
+              tipoInstrumento: beforeData.tipoInstrumento,
+              mercadoOrigen: beforeData.mercadoOrigen,
+              periodo: beforeData.periodo,
+            },
+            {
+              tipoInstrumento: afterData.tipoInstrumento,
+              mercadoOrigen: afterData.mercadoOrigen,
+              periodo: afterData.periodo,
+            }
+          )
+        }
       }
       
       onSave()
       onClose()
     } catch (error) {
       console.error('Error guardando calificación:', error)
-      setErrors({ submit: 'Error al guardar la calificación. Intente nuevamente.' })
+      setErrors({ submit: isCreateMode 
+        ? 'Error al crear la calificación. Intente nuevamente.' 
+        : 'Error al guardar la calificación. Intente nuevamente.' 
+      })
     } finally {
       setIsSaving(false)
     }
   }
 
-  if (!isOpen || !qualification) return null
+  if (!isOpen) return null
+  if (!isCreateMode && !qualification) return null
 
   const factorKeys: (keyof TaxFactors)[] = ['factor8', 'factor9', 'factor10', 'factor11', 'factor12', 'factor13', 
                                              'factor14', 'factor15', 'factor16', 'factor17', 'factor18', 'factor19']
@@ -200,7 +269,9 @@ export default function EditQualificationModal({
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
       <div className="backdrop-blur-xl bg-slate-900/90 border border-white/20 rounded-2xl p-6 lg:p-8 max-w-4xl w-full max-h-[90vh] overflow-y-auto shadow-2xl">
         <div className="flex justify-between items-center mb-6">
-          <h2 className="text-2xl font-bold text-white">Editar Calificación Tributaria</h2>
+          <h2 className="text-2xl font-bold text-white">
+            {isCreateMode ? 'Nueva Calificación Tributaria' : 'Editar Calificación Tributaria'}
+          </h2>
           <button
             onClick={onClose}
             className="p-2 hover:bg-white/10 rounded-lg transition-colors text-white"
@@ -427,7 +498,10 @@ export default function EditQualificationModal({
               disabled={isSaving || factorSum > 1}
               className="px-6 py-2 bg-gradient-to-r from-orange-600 to-amber-600 rounded-xl hover:from-orange-700 hover:to-amber-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed text-white font-medium"
             >
-              {isSaving ? 'Guardando...' : 'Guardar Cambios'}
+              {isSaving 
+                ? (isCreateMode ? 'Creando...' : 'Guardando...') 
+                : (isCreateMode ? 'Crear Calificación' : 'Guardar Cambios')
+              }
             </button>
           </div>
         </div>

@@ -271,6 +271,13 @@ export default function QualificationsSection({
                 </div>
                 <div className="flex gap-2">
                   <button
+                    onClick={() => setEditingQual({} as TaxQualification)}
+                    className="px-4 py-2 bg-gradient-to-r from-orange-600 to-amber-600 rounded-xl hover:from-orange-700 hover:to-amber-700 transition-all flex items-center gap-2 text-sm font-medium"
+                  >
+                    <Icons.Add className="w-4 h-4" />
+                    Nueva Calificación
+                  </button>
+                  <button
                     onClick={handleExportCSV}
                     disabled={isExporting || filteredQualifications.length === 0}
                     className="px-4 py-2 bg-white/10 border border-white/20 rounded-xl hover:bg-white/20 transition-colors disabled:opacity-50 flex items-center gap-2 text-sm"
@@ -539,12 +546,13 @@ export default function QualificationsSection({
             )}
           </div>
 
-          {/* Modal de edición */}
+          {/* Modal de edición/creación */}
           <EditQualificationModal
             qualification={editingQual}
             isOpen={editingQual !== null}
             onClose={() => setEditingQual(null)}
             onSave={handleSaveEdit}
+            mode={editingQual && editingQual.id ? 'edit' : 'create'}
           />
         </>
       )}

@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { collection, getDocs, query, where, Timestamp, orderBy, limit } from 'firebase/firestore';
 import { db } from '@/app/firebase/config';
 import Icons from '@/app/utils/icons';
+import { VERSION_INFO } from '@/app/utils/version';
 
 interface SystemStatsData {
   totalUsers: number;
@@ -294,7 +295,7 @@ export default function SystemStats() {
           <div className="space-y-3 text-sm">
             <div className="flex justify-between">
               <span className="text-gray-400">Versión</span>
-              <span className="font-semibold">v1.0.0</span>
+              <span className="font-semibold">{VERSION_INFO.display}</span>
             </div>
             <div className="flex justify-between">
               <span className="text-gray-400">Última Actualización</span>
