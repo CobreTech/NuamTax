@@ -39,11 +39,13 @@ import { getBrokerStats, type BrokerStats, getUserConfig, type UserConfig } from
 import { useAuth } from '../context/AuthContext'
 import { logLogout } from '../services/auditService'
 import { useFirestoreCache } from '../hooks/useFirestoreCache'
+import { useDashboard } from '../context/DashboardContext'
 
 // Componente principal del Dashboard.
 export default function Dashboard() {
   const router = useRouter() // Hook para manejar el enrutamiento.
   const { userProfile } = useAuth() // Obtener perfil del usuario autenticado
+  const { setGlobalStats, setActiveModule } = useDashboard(); // Access global context
 
   // --- ESTADOS DEL COMPONENTE ---
   const [activeTab, setActiveTab] = useState<ActiveTab>('overview') // Pestaña activa en la navegación.
@@ -117,6 +119,18 @@ export default function Dashboard() {
       window.removeEventListener('reloadBrokerStats', handleReloadStats)
     }
   }, [invalidateStatsCache])
+
+  // Sync global stats to context
+  useEffect(() => {
+    if (brokerStats) {
+      setGlobalStats(brokerStats);
+    }
+  }, [brokerStats, setGlobalStats]);
+
+  // Sync active module to context
+  useEffect(() => {
+    setActiveModule(activeTab);
+  }, [activeTab, setActiveModule]);
 
   // Define los elementos del menú de navegación.
   const menuItems: MenuItem[] = [

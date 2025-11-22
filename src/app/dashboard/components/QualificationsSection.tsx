@@ -30,6 +30,7 @@ import ConfirmDialog from '../../components/ConfirmDialog'
 import LoadingSpinner from '../../components/LoadingSpinner'
 import Icons from '../../utils/icons'
 import CustomDropdown from '../../components/CustomDropdown'
+import { useDashboard } from '../../context/DashboardContext'
 
 interface QualificationsSectionProps {
   brokerId?: string
@@ -48,6 +49,7 @@ function QualificationsSection({
   dateFormat = 'DD/MM/AAAA'
 }: QualificationsSectionProps) {
   const { userProfile } = useAuth()
+  const { setCurrentData } = useDashboard();
   const [qualifications, setQualifications] = useState<TaxQualification[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -188,6 +190,11 @@ function QualificationsSection({
 
     return result
   }, [qualifications, debouncedSearchTerm, filterMarket, filterPeriod, filterStatus, filterMinAmount, filterMaxAmount, sortField, sortDirection])
+
+  // Update global dashboard context with current data
+  useEffect(() => {
+    setCurrentData(processedQualifications);
+  }, [processedQualifications, setCurrentData]);
 
   // Paginación
   const totalPages = Math.ceil(processedQualifications.length / pageSize)
