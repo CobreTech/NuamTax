@@ -4,21 +4,28 @@
  * Esto asegura la consistencia de los datos y mejora la legibilidad y mantenibilidad del código.
  */
 
-// Define la estructura de factores tributarios (F8-F19)
-// Según documentación: factores con nombres factor8, factor9, etc.
+// Define la estructura de factores tributarios (F8-F16)
+// Estos factores determinan la distribución de montos de dividendos en las columnas DJ1948
+// Los créditos tributarios (C17-C32) se calculan automáticamente según configuración del régimen
 export interface TaxFactors {
-  factor8: number;   // Factor 8 (0-1)
-  factor9: number;   // Factor 9 (0-1)
-  factor10: number;  // Factor 10 (0-1)
-  factor11: number;  // Factor 11 (0-1)
-  factor12: number;  // Factor 12 (0-1)
-  factor13: number;  // Factor 13 (0-1)
-  factor14: number;  // Factor 14 (0-1)
-  factor15: number;  // Factor 15 (0-1)
-  factor16: number;  // Factor 16 (0-1)
-  factor17: number;  // Factor 17 (0-1)
-  factor18: number;  // Factor 18 (0-1)
-  factor19: number;  // Factor 19 (0-1)
+  factor8?: number;   // C8: Sin derecho a crédito (0-1)
+  factor9?: number;   // C9: RAP y diferencia inicial (0-1)
+  factor10?: number;  // C10: Otras rentas sin prioridad (0-1)
+  factor11?: number;  // C11: Exceso distribuciones desproporcionadas (0-1)
+  factor12?: number;  // C12: ISFUT Ley 20.780 (0-1)
+  factor13?: number;  // C13: Rentas hasta 1983 / ISFUT/ISIF (0-1)
+  factor14?: number;  // C14: Exentas IGC Art. 11 Ley 18.401 (0-1)
+  factor15?: number;  // C15: Exentos IGC y/o IA (0-1)
+  factor16?: number;  // C16: Ingresos no constitutivos de renta (0-1)
+}
+
+// Define la configuración para el cálculo automático de créditos tributarios (C17-C32)
+export interface TaxCreditsConfig {
+  regimenTributario: '14A' | '14D3';  // Régimen de la empresa declarante
+  tasaIDPC: number;                    // Tasa IDPC aplicable (0-1, ej: 0.27 para 27%)
+  anioTributario: number;              // Año tributario (ej: 2025)
+  creditoConDevolucion: boolean;       // ¿Crédito con derecho a devolución?
+  creditoSujetoRestitucion: boolean;   // ¿Sujeto a restitución Art. 56/63 LIR?
 }
 
 // Define la estructura del monto según documentación
@@ -27,21 +34,70 @@ export interface Monto {
   moneda: string;   // Código de la divisa (ej. "CLP")
 }
 
+// Define la estructura de un contribuyente (accionista, persona natural o jurídica)
+export interface Contributor {
+  id: string;                           // ID único del contribuyente
+  rut: string;                          // RUT formateado (12.345.678-9)
+  rutRaw: string;                       // RUT sin formato (123456789) para búsquedas
+  nombre: string;                       // Nombre completo o razón social
+  tipoPersona: 'NATURAL' | 'JURIDICA';  // Tipo de persona
+  tipoSociedad?: 'SA_ABIERTA' | 'SA_CERRADA' | 'SPA' | 'LIMITADA' | 'INDIVIDUAL' | 'COMANDITA';
+  correoElectronico?: string;           // Email de contacto
+  telefono?: string;                    // Teléfono de contacto
+  direccion?: string;                   // Dirección física
+
+  // Estadísticas (calculadas dinámicamente)
+  totalCalificaciones?: number;         // Total de calificaciones asociadas
+  montoTotal?: number;                  // Suma de todos los montos
+  ultimaCalificacion?: Date;            // Fecha de la última calificación
+
+  // Metadata
+  usuarioId: string;                    // Usuario propietario del contribuyente
+  fechaCreacion: Date;                  // Fecha de creación del registro
+  fechaUltimaModificacion: Date;        // Fecha de última actualización
+  activo: boolean;                      // Si el contribuyente está activo (soft delete)
+}
+
+// Define las estadísticas de un contribuyente
+export interface ContributorStats {
+  contributorId: string;
+  totalCalificaciones: number;
+  montoTotal: number;
+  montoPorMoneda: Record<string, number>; // { 'CLP': 1000000, 'USD': 5000 }
+  ultimaCalificacion?: Date;
+  periodosMasRecientes: string[];         // Últimos 5 períodos
+  distribuciones: {
+    porInstrumento: Record<string, number>;
+    porMercado: Record<string, number>;
+  };
+}
+
+// Define filtros para búsqueda de contribuyentes
+export interface ContributorFilters {
+  searchTerm?: string;                  // Búsqueda por RUT o nombre
+  tipoPersona?: 'NATURAL' | 'JURIDICA' | 'ALL';
+  activo?: boolean;
+  sortBy?: 'nombre' | 'monto' | 'fecha' | 'calificaciones';
+  sortOrder?: 'asc' | 'desc';
+}
+
 // Define la estructura de un objeto de Calificación Tributaria con factores detallados.
 // Alineado con la documentación del diseño (contexto2.md - Tabla 7)
 export interface TaxQualification {
   id: string;                    // Identificador único de la calificación.
   usuarioId: string;             // UID del corredor propietario (segregación) - antes brokerId
+  contributorId?: string;        // ID del contribuyente asociado (si existe en catálogo)
   rutContribuyente?: string;     // RUT del contribuyente (persona natural o jurídica) dueño de la calificación - para DJ1948
   tipoInstrumento: string;       // Tipo de instrumento financiero - antes instrument
   mercadoOrigen: string;          // Mercado de valores del instrumento - antes market
   periodo: string;                // Período tributario de la calificación (ej. 2024-12-31)
   esNoInscrita: boolean;         // Indica si corresponde a un valor no inscrito - antes isOfficial
   monto: Monto;                   // Objeto que agrupa el valor monetario y la divisa - antes amount
-  factores: TaxFactors;           // Factores tributarios F8-F19
+  factores: TaxFactors;           // Factores tributarios F8-F16 (montos de dividendos)
+  creditosConfig?: TaxCreditsConfig; // Configuración para cálculo de créditos tributarios (C17-C32)
   fechaCreacion: Date;           // Fecha y hora de creación del registro - antes createdAt
   fechaUltimaModificacion: Date;  // Fecha y hora de última actualización - antes updatedAt
-  // Campo adicional para compatibilidad con UI (tipo de calificación)
+  // Campo adicional para compatibiliad con UI (tipo de calificación)
   tipoCalificacion?: string;      // Tipo de calificación (ej. Dividendos, Intereses) - opcional
 }
 
@@ -117,4 +173,36 @@ export interface MenuItem {
 }
 
 // Define los posibles valores para la pestaña activa en el dashboard.
-export type ActiveTab = 'overview' | 'qualifications' | 'upload' | 'reports' | 'settings';
+export type ActiveTab = 'overview' | 'qualifications' | 'contributors' | 'upload' | 'reports' | 'settings';
+
+// ============================================
+// CONTRIBUTOR-AWARE BULK UPLOAD TYPES
+// ============================================
+
+// Modo de carga masiva
+export type UploadMode = 'specific' | 'bulk';
+
+// Match de contribuyente durante carga masiva
+export interface ContributorMatch {
+  rut: string;                    // Formatted RUT
+  rutRaw: string;                 // Raw RUT for queries
+  contributorId?: string;         // ID if contributor exists
+  exists: boolean;                // Whether contributor already exists
+  nombre: string;                 // Name (inferred or existing)
+  tipoPersona: 'NATURAL' | 'JURIDICA';  // Person type (inferred or existing)
+  qualificationCount: number;     // Number of qualifications in this upload
+  isAutoCreated?: boolean;        // Whether it was auto-created
+}
+
+// ProcessedRecord con información de contribuyente
+export interface ProcessedRecordWithContributor extends ProcessedRecord {
+  contributorMatch?: ContributorMatch;
+}
+
+// Resultado de carga masiva con estadísticas de contribuyentes
+export interface BulkUploadResultWithContributors extends BulkUploadResult {
+  contributorsLinked: number;     // Contribuyentes existentes vinculados
+  contributorsCreated: number;    // Contribuyentes nuevos creados
+  contributorMatches: ContributorMatch[];  // Detalle completo de contribuyentes
+}
+

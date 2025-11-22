@@ -1,15 +1,18 @@
 /**
- * @file taxValidationService.ts
- * @description Servicio de validación de datos tributarios
- * Implementa RF-03: Validación automática de factores
- * Los factores F8-F19 no deben sumar más de 1 (100%)
+ * Servicio de validación de datos tributarios
+ * 
+ * Proporciona funciones para validar calificaciones tributarias según las reglas
+ * de negocio del sistema. Incluye validación de factores (F8-F19) que no deben
+ * sumar más de 100%, validación de campos requeridos y detección de duplicados.
  */
 
 import { TaxFactors, TaxQualification, ValidationError } from '../dashboard/components/types';
 
 /**
  * Valida que la suma de los factores F8-F19 no supere 1 (100%)
- * RF-03: Validación automática de factores
+ * 
+ * Considera tolerancia para errores de punto flotante y permite sumas exactamente
+ * iguales a 1.00 (100%) como válidas.
  */
 export function validateFactorsSum(factors: TaxFactors): { isValid: boolean; sum: number; error?: string } {
   const sum = 

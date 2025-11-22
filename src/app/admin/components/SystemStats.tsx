@@ -106,7 +106,7 @@ export default function SystemStats() {
       // Cargar usuarios
       const usersSnap = await getDocs(collection(db, 'users'));
       const users = usersSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      
+
       const totalUsers = users.length;
       const totalCorredores = users.filter((u: any) => u.rol === 'Corredor').length;
       const totalAdministradores = users.filter((u: any) => u.rol === 'Administrador').length;
@@ -116,14 +116,14 @@ export default function SystemStats() {
       const activeUsers = Math.floor(totalUsers * 0.75);
 
       // Cargar total de calificaciones (sin acceso al detalle)
-      const qualificationsSnap = await getDocs(collection(db, 'calificaciones'));
+      const qualificationsSnap = await getDocs(collection(db, 'tax-qualifications'));
       const totalQualifications = qualificationsSnap.size;
 
       // Calificaciones este mes
       const firstDayOfMonth = new Date();
       firstDayOfMonth.setDate(1);
       firstDayOfMonth.setHours(0, 0, 0, 0);
-      
+
       const monthQuery = query(
         collection(db, 'calificaciones'),
         where('fechaCreacion', '>=', Timestamp.fromDate(firstDayOfMonth))
@@ -151,7 +151,7 @@ export default function SystemStats() {
         // Contar uploads hoy
         const todayStart = new Date();
         todayStart.setHours(0, 0, 0, 0);
-        uploadsToday = recentLogs.filter(log => 
+        uploadsToday = recentLogs.filter(log =>
           log.action === 'UPLOAD' && log.timestamp >= todayStart
         ).length;
 

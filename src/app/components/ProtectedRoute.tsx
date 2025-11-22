@@ -48,7 +48,7 @@ export default function ProtectedRoute({
       return;
     }
 
-    // Todo OK, el usuario tiene permiso
+    // Usuario autorizado, permitir acceso
     console.log('[PROTECTED ROUTE] Acceso autorizado:', userProfile?.rol);
   }, [user, userProfile, loading, requireAuth, requiredRole, router]);
 

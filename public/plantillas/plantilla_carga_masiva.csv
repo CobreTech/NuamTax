@@ -1,9 +1,9 @@
-instrumento,mercado,periodo,tipo_calificacion,f8,f9,f10,f11,f12,f13,f14,f15,f16,f17,f18,f19,monto,es_oficial
-Acción ABC,BVC,2024-Q1,Dividendos,0.08,0.08,0.08,0.08,0.08,0.08,0.08,0.08,0.08,0.08,0.10,0.10,15000,true
-Bono Corporativo XYZ,BVC,2024-Q1,Intereses,0.10,0.09,0.08,0.07,0.06,0.05,0.05,0.10,0.10,0.10,0.10,0.10,45000,true
-ETF Regional 123,COLCAP,2024-Q2,Capital,0.05,0.05,0.10,0.10,0.10,0.10,0.10,0.10,0.10,0.10,0.05,0.05,8500,false
-Fondo Mutuo DEF,BVC,2024-Q2,Dividendos,0.12,0.10,0.08,0.06,0.05,0.05,0.08,0.08,0.08,0.10,0.10,0.10,23400,true
-Acción Preferente GHI,COLCAP,2024-Q3,Dividendos,0.09,0.09,0.09,0.09,0.08,0.08,0.08,0.08,0.08,0.08,0.08,0.08,67800,true
-Bono Gobierno JKL,BVC,2024-Q3,Intereses,0.15,0.10,0.10,0.05,0.05,0.05,0.10,0.10,0.10,0.10,0.05,0.05,120000,true
-ETF Internacional MNO,BVC,2024-Q4,Capital,0.08,0.08,0.08,0.08,0.08,0.08,0.09,0.09,0.09,0.09,0.08,0.08,95000,false
-Fondo Pensional PQR,COLCAP,2024-Q4,Mixto,0.10,0.10,0.08,0.08,0.08,0.08,0.08,0.08,0.08,0.08,0.08,0.08,58900,true
+instrumento,mercado,periodo,tipo_calificacion,f8,f9,f10,f11,f12,f13,f14,f15,f16,monto,es_oficial,regimen_tributario,tasa_idpc,anio_tributario,credito_devolucion,credito_restitucion
+Acción ABC,BVC,2024-Q1,Dividendos,0.08,0.08,0.08,0.08,0.08,0.08,0.08,0.08,0.08,15000,true,14A,0.27,2025,false,false
+Bono Corporativo XYZ,BVC,2024-Q1,Intereses,0.10,0.09,0.08,0.07,0.06,0.05,0.05,0.10,0.10,45000,true,14A,0.27,2025,false,false
+ETF Regional 123,COLCAP,2024-Q2,Capital,0.05,0.05,0.10,0.10,0.10,0.10,0.10,0.10,0.10,8500,false,14D3,0.25,2025,true,false
+Fondo Mutuo DEF,BVC,2024-Q2,Dividendos,0.12,0.10,0.08,0.06,0.05,0.05,0.08,0.08,0.08,23400,true,14A,0.27,2025,false,false
+Acción Preferente GHI,COLCAP,2024-Q3,Dividendos,0.09,0.09,0.09,0.09,0.08,0.08,0.08,0.08,0.08,67800,true,14A,0.27,2025,false,false
+Bono Gobierno JKL,BVC,2024-Q3,Intereses,0.15,0.10,0.10,0.05,0.05,0.05,0.10,0.10,0.10,120000,true,14A,0.27,2025,false,false
+ETF Internacional MNO,BVC,2024-Q4,Capital,0.08,0.08,0.08,0.08,0.08,0.08,0.09,0.09,0.09,95000,false,14D3,0.25,2025,true,false
+Fondo Pensional PQR,COLCAP,2024-Q4,Mixto,0.10,0.10,0.08,0.08,0.08,0.08,0.08,0.08,0.08,58900,true,14A,0.27,2025,false,false

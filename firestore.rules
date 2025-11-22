@@ -1,0 +1,59 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+    
+    function isOwnerOfResource() {
+      return isAuthenticated() && resource.data.usuarioId == request.auth.uid;
+    }
+    
+    function isAssigningToSelf() {
+      return isAuthenticated() && request.resource.data.usuarioId == request.auth.uid;
+    }
+
+    // Users collection
+    match /users/{userId} {
+      allow read: if isAuthenticated(); // Users might need to read basic profile info
+      allow write: if isOwner(userId); // Only owner can update their profile
+    }
+
+    // Tax Qualifications (Calificaciones)
+    match /calificaciones/{qualificationId} {
+      // Read: Allow if the user owns the qualification
+      allow read: if isOwnerOfResource();
+      
+      // Create: Allow if authenticated and assigning to self
+      allow create: if isAssigningToSelf();
+      
+      // Update: Allow if owner and not changing the owner
+      allow update: if isOwnerOfResource() && isAssigningToSelf();
+      
+      // Delete: Allow if owner
+      allow delete: if isOwnerOfResource();
+    }
+
+    // User Configurations
+    match /userConfigs/{userId} {
+      allow read, write: if isOwner(userId);
+    }
+
+    // Audit Logs
+    match /auditLogs/{logId} {
+      // Allow users to create logs (e.g. for their own actions)
+      allow create: if isAuthenticated() && request.resource.data.usuarioId == request.auth.uid;
+      // Users can read their own logs
+      allow read: if isOwnerOfResource();
+      // No updates or deletes allowed for audit logs
+      allow update, delete: if false;
+    }
+  }
+}

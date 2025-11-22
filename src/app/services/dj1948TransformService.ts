@@ -8,6 +8,7 @@ import { TaxQualification } from '../dashboard/components/types'
 import { UserProfile } from '../context/AuthContext'
 import { DJ1948Data, DJ1948Declarante, DJ1948Row, DJ1948RetiroExceso } from './dj1948Types'
 import { validateAndFormatRUT } from '../utils/rutUtils'
+import { calculateAllCredits, validateCreditosConfig } from './dj1948CreditCalculator'
 
 /**
  * Transforma datos del usuario a Sección A (Declarante)
@@ -18,7 +19,7 @@ export function transformDeclarante(userProfile: UserProfile, additionalData?: {
   telefono?: string;
 }): DJ1948Declarante {
   // Formatear RUT del declarante
-  const rutFormatted = userProfile.Rut 
+  const rutFormatted = userProfile.Rut
     ? (validateAndFormatRUT(userProfile.Rut).formatted || userProfile.Rut)
     : '';
 
@@ -34,7 +35,8 @@ export function transformDeclarante(userProfile: UserProfile, additionalData?: {
 
 /**
  * Transforma una calificación tributaria a una fila del DJ1948
- * Mapea factores F8-F19 a las columnas correspondientes según reglas tributarias
+ * Mapea factores F8-F16 a las columnas correspondientes según reglas tributarias
+ * Los créditos C17-C32 se calculan automáticamente si existe creditosConfig
  */
 export function transformQualificationToDJ1948Row(
   qualification: TaxQualification,
@@ -73,25 +75,60 @@ export function transformQualificationToDJ1948Row(
   // Obtener monto base
   const montoBase = qualification.monto.valor || 0;
 
-  // Mapear factores F8-F19 a columnas del DJ1948
-  // Nota: Este mapeo es una aproximación. En un sistema real, se necesitarían
-  // reglas de negocio más complejas basadas en el tipo de instrumento y mercado.
-  
-  // Por defecto, distribuir el monto según los factores activos
-  // Si no hay factores activos, asignar a C8 (Sin derecho a crédito)
-  const factorSum = Object.values(qualification.factores).reduce((acc, val) => acc + val, 0);
-  
-  // Estrategia simplificada: distribuir el monto proporcionalmente según factores
-  // En producción, esto debería seguir las reglas tributarias específicas
-  const hasActiveFactors = factorSum > 0;
-  
-  // Si tiene factores activos, asumimos que corresponde a créditos IDPC desde 2017 (C5)
-  // Si no, va a sin derecho a crédito (C8)
-  const montoConCredito = hasActiveFactors ? montoBase : 0;
-  const montoSinCredito = !hasActiveFactors ? montoBase : 0;
+  // Mapear factores F8-F16 a columnas del DJ1948
+  // Lógica: ValorColumna = MontoTotal * Factor
+  // C5 se calcula como el remanente del monto total menos las rentas exentas/no constitutivas (C8-C16)
+
+  const f8 = (qualification.factores.factor8 || 0) * montoBase;
+  const f9 = (qualification.factores.factor9 || 0) * montoBase;
+  const f10 = (qualification.factores.factor10 || 0) * montoBase;
+  const f11 = (qualification.factores.factor11 || 0) * montoBase;
+  const f12 = (qualification.factores.factor12 || 0) * montoBase;
+  const f13 = (qualification.factores.factor13 || 0) * montoBase;
+  const f14 = (qualification.factores.factor14 || 0) * montoBase;
+  const f15 = (qualification.factores.factor15 || 0) * montoBase;
+  const f16 = (qualification.factores.factor16 || 0) * montoBase;
+
+  // Calcular C5 (Monto con derecho a crédito)
+  // Se asume que lo que no está clasificado en C8-C16 es monto afecto normal (C5)
+  const sumaRentasEspeciales = f8 + f9 + f10 + f11 + f12 + f13 + f14 + f15 + f16;
+  const c5 = Math.max(0, montoBase - sumaRentasEspeciales);
+
+  // Calcular créditos tributarios automáticamente si existe configuración
+  let creditos = {
+    c17: 0, c18: 0, c19: 0, c20: 0, c21: 0, c22: 0,
+    c23: 0, c24: 0, c25: 0, c26: 0, c27: 0, c28: 0,
+    c29: 0, c30: 0, c31: 0, c32: 0
+  };
+
+  if (qualification.creditosConfig) {
+    try {
+      // Validar configuración
+      validateCreditosConfig(qualification.creditosConfig);
+
+      // Calcular créditos según fórmulas del SII
+      creditos = calculateAllCredits({
+        c5: Math.round(c5),
+        c6: 0,  // No implementado aún
+        c7: 0,  // No implementado aún
+        c8: Math.round(f8),
+        c9: Math.round(f9),
+        c10: Math.round(f10),
+        c11: Math.round(f11),
+        c12: Math.round(f12),
+        c13: Math.round(f13),
+        c14: Math.round(f14),
+        c15: Math.round(f15),
+        c16: Math.round(f16)
+      }, qualification.creditosConfig);
+    } catch (error) {
+      console.warn('Error calculando créditos tributarios:', error);
+      // Si hay error, usar créditos en 0
+    }
+  }
 
   // Formatear RUT receptor
-  const rutReceptorFormatted = rutReceptor 
+  const rutReceptorFormatted = rutReceptor
     ? (validateAndFormatRUT(rutReceptor).formatted || rutReceptor)
     : '';
 
@@ -100,57 +137,46 @@ export function transformQualificationToDJ1948Row(
     c2: rutReceptorFormatted,
     c3: tipoPropietario,
     c4: cantidadAcciones,
-    
+
     // Afectos a impuestos
-    c5: montoConCredito,  // Con créditos IDPC desde 2017
-    c6: 0,  // Con créditos IDPC hasta 2016 (requiere datos históricos)
+    c5: Math.round(c5),  // Con créditos IDPC desde 2017 (Calculado por diferencia)
+    c6: 0,  // Con créditos IDPC hasta 2016
     c7: 0,  // Con derecho a crédito por pago IDPC voluntario
-    c8: montoSinCredito,  // Sin derecho a crédito
-    
+    c8: Math.round(f8),  // Sin derecho a crédito
+
     // Rentas con tributación cumplida
-    c9: 0,   // RAP y diferencia inicial
-    c10: 0,  // Otras rentas sin prioridad
-    c11: 0,  // Exceso distribuciones desproporcionadas
-    c12: 0,  // ISFUT Ley 20.780
-    c13: 0,  // Rentas hasta 31.12.1983 / ISFUT/ISIF
-    
+    c9: Math.round(f9),   // RAP y diferencia inicial
+    c10: Math.round(f10),  // Otras rentas sin prioridad
+    c11: Math.round(f11),  // Exceso distribuciones desproporcionadas
+    c12: Math.round(f12),  // ISFUT Ley 20.780
+    c13: Math.round(f13),  // Rentas hasta 31.12.1983 / ISFUT/ISIF
+
     // Rentas exentas
-    c14: 0,  // Exentas IGC artículo 11 Ley 18.401
-    c15: 0,  // Exentos IGC y/o IA
-    
+    c14: Math.round(f14),  // Exentas IGC artículo 11 Ley 18.401
+    c15: Math.round(f15),  // Exentos IGC y/o IA
+
     // Ingresos no constitutivos
-    c16: 0,  // Ingresos no constitutivos de renta
-    
-    // Créditos - Acumulados desde 01.01.2017 - No sujetos a restitución hasta 31.12.2019
-    c17: 0,  // Sin derecho a devolución
-    c18: 0,  // Con derecho a devolución
-    
-    // No sujetos a restitución desde 01.01.2020
-    c19: 0,  // Sin derecho a devolución
-    c20: 0,  // Con derecho a devolución
-    
-    // Sujetos a restitución
-    c21: 0,  // Sin derecho a devolución
-    c22: 0,  // Con derecho a devolución
-    
-    // Asociados a Rentas Exentas - Sujetos a restitución
-    c23: 0,  // Sin derecho a devolución
-    c24: 0,  // Con derecho a devolución
-    c25: 0,  // Crédito por IPE
-    
-    // Acumulados hasta 31.12.2016 - Asociados a Rentas Afectas
-    c26: 0,  // Sin derecho a devolución
-    c27: 0,  // Con derecho a devolución
-    
-    // Asociados a Rentas Exentas hasta 31.12.2016
-    c28: 0,  // Sin derecho a devolución
-    c29: 0,  // Con derecho a devolución
-    c30: 0,  // Crédito por IPE
-    
-    // Otros créditos
-    c31: 0,  // Crédito por impuesto tasa adicional
-    c32: 0,  // Devolución de capital
-    c33: '', // Número de certificado
+    c16: Math.round(f16),  // Ingresos no constitutivos de renta
+
+    // Créditos tributarios (C17-C32) - Calculados automáticamente
+    c17: creditos.c17,  // Sin derecho a devolución (2017-2019)
+    c18: creditos.c18,  // Con derecho a devolución (2017-2019)
+    c19: creditos.c19,  // Sin derecho a devolución (2020+)
+    c20: creditos.c20,  // Con derecho a devolución (2020+)
+    c21: creditos.c21,  // Sujeto a restitución - sin devolución
+    c22: creditos.c22,  // Sujeto a restitución - con devolución
+    c23: creditos.c23,  // Rentas exentas - sin devolución
+    c24: creditos.c24,  // Rentas exentas - con devolución
+    c25: creditos.c25,  // Crédito por IPE
+    c26: creditos.c26,  // Pre-2017 rentas afectas - sin devolución
+    c27: creditos.c27,  // Pre-2017 rentas afectas - con devolución
+    c28: creditos.c28,  // Pre-2017 rentas exentas - sin devolución
+    c29: creditos.c29,  // Pre-2017 rentas exentas - con devolución
+    c30: creditos.c30,  // Pre-2017 crédito IPE
+    c31: creditos.c31,  // Crédito ex Art. 21
+    c32: creditos.c32,  // Devolución de capital
+
+    c33: '',  // Número de certificado
   }
 }
 
@@ -171,8 +197,8 @@ export function transformToDJ1948Data(
   }
 ): DJ1948Data {
   const declarante = transformDeclarante(userProfile, additionalData);
-  
-  const informados: DJ1948Row[] = qualifications.map(qual => 
+
+  const informados: DJ1948Row[] = qualifications.map(qual =>
     transformQualificationToDJ1948Row(
       qual,
       additionalData?.rutReceptor || userProfile.Rut,
@@ -198,7 +224,7 @@ export function transformToDJ1948Data(
  */
 export function calculateDJ1948Totales(data: DJ1948Data): { [key: string]: number } {
   const totales: { [key: string]: number } = {};
-  
+
   // Inicializar todas las columnas numéricas
   for (let i = 1; i <= 35; i++) {
     totales[`c${i}`] = 0;
@@ -222,4 +248,3 @@ export function calculateDJ1948Totales(data: DJ1948Data): { [key: string]: numbe
 
   return totales;
 }
-

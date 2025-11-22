@@ -12,6 +12,30 @@
 }
 
 @layer components {
+  /* Clase para ocultar elementos visualmente pero mantenerlos accesibles para lectores de pantalla */
+  .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border-width: 0;
+  }
+
+  .sr-only:focus {
+    position: static;
+    width: auto;
+    height: auto;
+    padding: inherit;
+    margin: inherit;
+    overflow: visible;
+    clip: auto;
+    white-space: normal;
+  }
+
   .glass-card {
     @apply bg-nuam-card/60 backdrop-blur-md border border-nuam-border/50 rounded-2xl p-6 shadow-xl;
     transition: all 0.3s ease-in-out;

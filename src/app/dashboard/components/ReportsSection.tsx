@@ -1,30 +1,30 @@
 'use client'
 
 /**
- * Componente ReportsSection (Sección de Reportes)
+ * Componente ReportsSection
  * 
- * Esta sección proporciona la interfaz para que los usuarios generen diferentes tipos
- * de reportes tributarios. Incluye filtros para acotar los datos y tarjetas que
- * representan cada tipo de reporte disponible.
- * 
- * Funcionalidades:
- * - Panel de filtros por evento de capital y rango de fechas (funcional)
- * - Generación de reporte DJ1948 en PDF, XML, CSV y Excel
- * - Otros reportes (pendientes de implementación)
+ * Sección para generar reportes tributarios en múltiples formatos. Incluye filtros
+ * por evento de capital y rango de fechas, selector de contribuyente cuando hay múltiples,
+ * y generación de reportes DJ1948, Calificaciones por Evento, Resumen por Período
+ * y Factores por Instrumento. El reporte DJ1948 se encuentra en fase inicial.
  */
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, memo } from 'react'
 import { useAuth } from '../../context/AuthContext'
 import { getQualificationsByBrokerId } from '../../services/firestoreService'
 import { TaxQualification } from './types'
+import { useFirestoreCache } from '../../hooks/useFirestoreCache'
 import { generateDJ1948PDF, generateDJ1948CSV, generateDJ1948Excel, getContribuyentesFromQualifications } from '../../services/dj1948Service'
+import { generateEventReportPDF } from '../../services/reportEventService'
+import { generatePeriodReportPDF } from '../../services/reportPeriodService'
+import { generateFactorsReportPDF } from '../../services/reportFactorsService'
 import { logDataExport } from '../../services/auditService'
 import { validateAndFormatRUT } from '../../utils/rutUtils'
 import Icons from '../../utils/icons'
 import CustomDropdown from '../../components/CustomDropdown'
 import CustomDatePicker from '../../components/CustomDatePicker'
 
-export default function ReportsSection() {
+function ReportsSection() {
   const { userProfile } = useAuth()
   const [qualifications, setQualifications] = useState<TaxQualification[]>([])
   const [loading, setLoading] = useState(true)
@@ -52,45 +52,42 @@ export default function ReportsSection() {
     nombreContribuyente: '',
   })
 
-  // Cargar calificaciones
+  // Cargar calificaciones con caché
+  const { data: cachedQualifications, loading: cacheLoading, invalidateCache } = useFirestoreCache<TaxQualification[]>(
+    `qualifications-reports-${userProfile?.uid || ''}`,
+    () => {
+      if (!userProfile?.uid) return Promise.resolve([])
+      return getQualificationsByBrokerId(userProfile.uid, 0)
+    },
+    5 * 60 * 1000 // 5 minutos de caché
+  )
+
   useEffect(() => {
-    const loadQualifications = async () => {
-      if (!userProfile?.uid) {
-        setLoading(false)
-        return
+    if (cachedQualifications) {
+      setQualifications(cachedQualifications)
+      setLoading(false)
+
+      // Detectar contribuyentes únicos
+      const contribs = getContribuyentesFromQualifications(cachedQualifications)
+      setContribuyentes(contribs)
+
+      // Si hay un solo contribuyente, seleccionarlo automáticamente
+      if (contribs.length === 1) {
+        setSelectedContribuyente(contribs[0].rutClean || contribs[0].rut)
       }
 
+      // Inicializar RUT receptor con el RUT del usuario si existe
+      if (userProfile?.Rut) {
+        const rutResult = validateAndFormatRUT(userProfile.Rut)
+        if (rutResult.isValid) {
+          setRutReceptorFormatted(rutResult.formatted)
+          setDj1948Data(prev => ({ ...prev, rutReceptor: rutResult.clean }))
+        }
+      }
+    } else if (cacheLoading) {
       setLoading(true)
-      try {
-        const data = await getQualificationsByBrokerId(userProfile.uid, 1000)
-        setQualifications(data)
-
-        // Detectar contribuyentes únicos
-        const contribs = getContribuyentesFromQualifications(data)
-        setContribuyentes(contribs)
-
-        // Si hay un solo contribuyente, seleccionarlo automáticamente
-        if (contribs.length === 1) {
-          setSelectedContribuyente(contribs[0].rutClean || contribs[0].rut)
-        }
-
-        // Inicializar RUT receptor con el RUT del usuario si existe
-        if (userProfile.Rut) {
-          const rutResult = validateAndFormatRUT(userProfile.Rut)
-          if (rutResult.isValid) {
-            setRutReceptorFormatted(rutResult.formatted)
-            setDj1948Data(prev => ({ ...prev, rutReceptor: rutResult.clean }))
-          }
-        }
-      } catch (error) {
-        console.error('Error cargando calificaciones para reportes:', error)
-      } finally {
-        setLoading(false)
-      }
     }
-
-    loadQualifications()
-  }, [userProfile?.uid, userProfile?.Rut])
+  }, [cachedQualifications, cacheLoading, userProfile])
 
   // Filtrar calificaciones según filtros aplicados
   const filteredQualifications = qualifications.filter(qual => {
@@ -117,6 +114,100 @@ export default function ReportsSection() {
 
     return true
   })
+
+  // Generar reporte de Calificaciones por Evento de Capital
+  const handleGenerateEventReport = () => {
+    if (!userProfile || filteredQualifications.length === 0) {
+      alert('No hay calificaciones disponibles para generar el reporte')
+      return
+    }
+
+    setGenerating('event')
+    try {
+      generateEventReportPDF(filteredQualifications, userProfile, {
+        eventFilter,
+        dateFrom,
+        dateTo
+      })
+
+      // Registrar en auditoría
+      logDataExport(
+        userProfile.uid,
+        userProfile.email || '',
+        `${userProfile.Nombre} ${userProfile.Apellido}`,
+        'report-event',
+        filteredQualifications.length
+      )
+
+      setGenerating(null)
+    } catch (error) {
+      console.error('Error generando reporte de eventos:', error)
+      alert('Error al generar el reporte. Por favor, intenta nuevamente.')
+      setGenerating(null)
+    }
+  }
+
+  // Generar reporte de Resumen por Período
+  const handleGeneratePeriodReport = () => {
+    if (!userProfile || filteredQualifications.length === 0) {
+      alert('No hay calificaciones disponibles para generar el reporte')
+      return
+    }
+
+    setGenerating('period')
+    try {
+      generatePeriodReportPDF(filteredQualifications, userProfile, {
+        dateFrom,
+        dateTo
+      })
+
+      // Registrar en auditoría
+      logDataExport(
+        userProfile.uid,
+        userProfile.email || '',
+        `${userProfile.Nombre} ${userProfile.Apellido}`,
+        'report-period',
+        filteredQualifications.length
+      )
+
+      setGenerating(null)
+    } catch (error) {
+      console.error('Error generando reporte de período:', error)
+      alert('Error al generar el reporte. Por favor, intenta nuevamente.')
+      setGenerating(null)
+    }
+  }
+
+  // Generar reporte de Factores por Instrumento
+  const handleGenerateFactorsReport = () => {
+    if (!userProfile || filteredQualifications.length === 0) {
+      alert('No hay calificaciones disponibles para generar el reporte')
+      return
+    }
+
+    setGenerating('factors')
+    try {
+      generateFactorsReportPDF(filteredQualifications, userProfile, {
+        dateFrom,
+        dateTo
+      })
+
+      // Registrar en auditoría
+      logDataExport(
+        userProfile.uid,
+        userProfile.email || '',
+        `${userProfile.Nombre} ${userProfile.Apellido}`,
+        'report-factors',
+        filteredQualifications.length
+      )
+
+      setGenerating(null)
+    } catch (error) {
+      console.error('Error generando reporte de factores:', error)
+      alert('Error al generar el reporte. Por favor, intenta nuevamente.')
+      setGenerating(null)
+    }
+  }
 
   // Generar DJ1948 en formato específico
   const handleGenerateDJ1948 = async (format: 'pdf' | 'csv' | 'excel') => {
@@ -272,7 +363,7 @@ export default function ReportsSection() {
           )}
         </div>
 
-        {/* Otros reportes - Pendientes */}
+        {/* Reporte Calificaciones por Evento de Capital */}
         <div className="backdrop-blur-xl bg-white/5 border border-white/10 rounded-2xl p-4 lg:p-6">
           <div className="flex items-start justify-between mb-3 lg:mb-4">
             <div>
@@ -281,15 +372,39 @@ export default function ReportsSection() {
             </div>
             <Icons.BarChart className="w-8 h-8 lg:w-10 lg:h-10 text-orange-400" />
           </div>
-          <button
-            onClick={() => alert('Pendiente de implementación')}
-            className="w-full px-3 lg:px-4 py-2 bg-gray-600/50 text-gray-400 rounded-xl cursor-not-allowed text-xs lg:text-sm"
-            disabled
-          >
-            Generar PDF (Próximamente)
-          </button>
+          {loading ? (
+            <div className="text-center py-4 text-gray-400">Cargando calificaciones...</div>
+          ) : filteredQualifications.length === 0 ? (
+            <div className="text-center py-4 text-gray-400 text-xs">
+              No hay calificaciones disponibles con los filtros aplicados
+            </div>
+          ) : (
+            <div className="space-y-2">
+              <button
+                onClick={handleGenerateEventReport}
+                disabled={generating !== null}
+                className="w-full px-3 lg:px-4 py-2 bg-gradient-to-r from-orange-600 to-orange-700 rounded-xl hover:from-orange-700 hover:to-orange-800 transition-all disabled:opacity-50 disabled:cursor-not-allowed text-xs lg:text-sm font-semibold flex items-center justify-center gap-2"
+              >
+                {generating === 'event' ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                    <span>Generando...</span>
+                  </>
+                ) : (
+                  <>
+                    <Icons.File className="w-4 h-4" />
+                    <span>Generar PDF</span>
+                  </>
+                )}
+              </button>
+              <div className="text-xs text-gray-400 text-center">
+                {filteredQualifications.length} registro(s) incluido(s)
+              </div>
+            </div>
+          )}
         </div>
 
+        {/* Reporte Resumen por Período */}
         <div className="backdrop-blur-xl bg-white/5 border border-white/10 rounded-2xl p-4 lg:p-6">
           <div className="flex items-start justify-between mb-3 lg:mb-4">
             <div>
@@ -298,15 +413,39 @@ export default function ReportsSection() {
             </div>
             <Icons.TrendingUp className="w-8 h-8 lg:w-10 lg:h-10 text-green-400" />
           </div>
-          <button
-            onClick={() => alert('Pendiente de implementación')}
-            className="w-full px-3 lg:px-4 py-2 bg-gray-600/50 text-gray-400 rounded-xl cursor-not-allowed text-xs lg:text-sm"
-            disabled
-          >
-            Generar PDF (Próximamente)
-          </button>
+          {loading ? (
+            <div className="text-center py-4 text-gray-400">Cargando calificaciones...</div>
+          ) : filteredQualifications.length === 0 ? (
+            <div className="text-center py-4 text-gray-400 text-xs">
+              No hay calificaciones disponibles con los filtros aplicados
+            </div>
+          ) : (
+            <div className="space-y-2">
+              <button
+                onClick={handleGeneratePeriodReport}
+                disabled={generating !== null}
+                className="w-full px-3 lg:px-4 py-2 bg-gradient-to-r from-green-600 to-green-700 rounded-xl hover:from-green-700 hover:to-green-800 transition-all disabled:opacity-50 disabled:cursor-not-allowed text-xs lg:text-sm font-semibold flex items-center justify-center gap-2"
+              >
+                {generating === 'period' ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                    <span>Generando...</span>
+                  </>
+                ) : (
+                  <>
+                    <Icons.File className="w-4 h-4" />
+                    <span>Generar PDF</span>
+                  </>
+                )}
+              </button>
+              <div className="text-xs text-gray-400 text-center">
+                {filteredQualifications.length} registro(s) incluido(s)
+              </div>
+            </div>
+          )}
         </div>
 
+        {/* Reporte Factores por Instrumento */}
         <div className="backdrop-blur-xl bg-white/5 border border-white/10 rounded-2xl p-4 lg:p-6">
           <div className="flex items-start justify-between mb-3 lg:mb-4">
             <div>
@@ -315,13 +454,36 @@ export default function ReportsSection() {
             </div>
             <Icons.ClipboardList className="w-8 h-8 lg:w-10 lg:h-10 text-blue-400" />
           </div>
-          <button
-            onClick={() => alert('Pendiente de implementación')}
-            className="w-full px-3 lg:px-4 py-2 bg-gray-600/50 text-gray-400 rounded-xl cursor-not-allowed text-xs lg:text-sm"
-            disabled
-          >
-            Generar PDF (Próximamente)
-          </button>
+          {loading ? (
+            <div className="text-center py-4 text-gray-400">Cargando calificaciones...</div>
+          ) : filteredQualifications.length === 0 ? (
+            <div className="text-center py-4 text-gray-400 text-xs">
+              No hay calificaciones disponibles con los filtros aplicados
+            </div>
+          ) : (
+            <div className="space-y-2">
+              <button
+                onClick={handleGenerateFactorsReport}
+                disabled={generating !== null}
+                className="w-full px-3 lg:px-4 py-2 bg-gradient-to-r from-blue-600 to-blue-700 rounded-xl hover:from-blue-700 hover:to-blue-800 transition-all disabled:opacity-50 disabled:cursor-not-allowed text-xs lg:text-sm font-semibold flex items-center justify-center gap-2"
+              >
+                {generating === 'factors' ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                    <span>Generando...</span>
+                  </>
+                ) : (
+                  <>
+                    <Icons.File className="w-4 h-4" />
+                    <span>Generar PDF</span>
+                  </>
+                )}
+              </button>
+              <div className="text-xs text-gray-400 text-center">
+                {filteredQualifications.length} registro(s) incluido(s)
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
@@ -532,3 +694,5 @@ export default function ReportsSection() {
     </div>
   )
 }
+
+export default memo(ReportsSection)

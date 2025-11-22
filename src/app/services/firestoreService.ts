@@ -1,8 +1,10 @@
 /**
- * @file firestoreService.ts
- * @description Servicio de Firestore para operaciones CRUD de calificaciones tributarias
- * Implementa RF-01: Carga masiva con actualización de registros existentes
- * Implementa RF-10: Segregación de datos por corredor
+ * Servicio de Firestore para operaciones CRUD de calificaciones tributarias
+ * 
+ * Proporciona funciones para crear, leer, actualizar y eliminar calificaciones
+ * en Firestore. Implementa paginación automática para manejar grandes volúmenes
+ * de datos y garantiza la segregación de datos por corredor mediante filtros
+ * de seguridad. Soporta carga masiva con detección y actualización de duplicados.
  */
 
 'use client';
@@ -17,17 +19,21 @@ import {
   where,
   orderBy,
   limit,
+  startAfter,
   Timestamp,
   writeBatch,
-  WhereFilterOp
+  QueryDocumentSnapshot,
+  deleteDoc,
+  updateDoc,
+  increment
 } from 'firebase/firestore';
 import { db } from '../firebase/config';
 import { TaxQualification, ProcessedRecord, BulkUploadResult } from '../dashboard/components/types';
 import { isDuplicateQualification } from './taxValidationService';
 
 // Nombre de la colección en Firestore (debe coincidir con las reglas de seguridad)
-// Según documentación: colección "calificaciones"
-const COLLECTION_NAME = 'calificaciones';
+// Según documentación: colección "tax-qualifications"
+const COLLECTION_NAME = 'tax-qualifications';
 
 /**
  * Convierte un objeto TaxQualification a formato Firestore
@@ -36,6 +42,7 @@ const COLLECTION_NAME = 'calificaciones';
 function toFirestoreFormat(qualification: TaxQualification): any {
   return {
     usuarioId: qualification.usuarioId,
+    ...(qualification.contributorId && { contributorId: qualification.contributorId }),
     ...(qualification.rutContribuyente && { rutContribuyente: qualification.rutContribuyente }),
     tipoInstrumento: qualification.tipoInstrumento,
     mercadoOrigen: qualification.mercadoOrigen,
@@ -46,6 +53,7 @@ function toFirestoreFormat(qualification: TaxQualification): any {
       moneda: qualification.monto.moneda || 'CLP',
     },
     factores: qualification.factores,
+    ...(qualification.creditosConfig && { creditosConfig: qualification.creditosConfig }),
     fechaCreacion: Timestamp.fromDate(qualification.fechaCreacion),
     fechaUltimaModificacion: Timestamp.fromDate(qualification.fechaUltimaModificacion),
     ...(qualification.tipoCalificacion && { tipoCalificacion: qualification.tipoCalificacion }),
@@ -61,12 +69,13 @@ function fromFirestoreFormat(doc: any): TaxQualification {
   return {
     id: doc.id,
     usuarioId: data.usuarioId || '',
+    contributorId: data.contributorId || undefined,
     rutContribuyente: data.rutContribuyente || undefined,
     tipoInstrumento: data.tipoInstrumento || '',
     mercadoOrigen: data.mercadoOrigen || '',
     periodo: data.periodo || '',
     esNoInscrita: data.esNoInscrita !== undefined ? data.esNoInscrita : false,
-    monto: data.monto && typeof data.monto === 'object' 
+    monto: data.monto && typeof data.monto === 'object'
       ? { valor: data.monto.valor || 0, moneda: data.monto.moneda || 'CLP' }
       : { valor: 0, moneda: 'CLP' },
     factores: data.factores || {
@@ -74,6 +83,7 @@ function fromFirestoreFormat(doc: any): TaxQualification {
       factor13: 0, factor14: 0, factor15: 0, factor16: 0, factor17: 0,
       factor18: 0, factor19: 0,
     },
+    creditosConfig: data.creditosConfig || undefined,
     fechaCreacion: data.fechaCreacion?.toDate() || new Date(),
     fechaUltimaModificacion: data.fechaUltimaModificacion?.toDate() || new Date(),
     tipoCalificacion: data.tipoCalificacion || '',
@@ -90,7 +100,7 @@ function generateQualificationId(qualification: Partial<TaxQualification>): stri
   const tipoInstrumento = qualification.tipoInstrumento || '';
   const mercadoOrigen = qualification.mercadoOrigen || '';
   const periodo = qualification.periodo || '';
-  
+
   // Normalizar campos para que sean legibles pero válidos como ID
   const normalizeField = (field: string): string => {
     return field
@@ -101,11 +111,11 @@ function generateQualificationId(qualification: Partial<TaxQualification>): stri
       .replace(/-+/g, '-')            // Múltiples guiones a uno solo
       .replace(/^-|-$/g, '');         // Eliminar guiones al inicio/fin
   };
-  
+
   const tipoNorm = normalizeField(tipoInstrumento) || 'sin-tipo';
   const mercadoNorm = normalizeField(mercadoOrigen) || 'sin-mercado';
   const periodoNorm = normalizeField(periodo) || 'sin-periodo';
-  
+
   // Usar primeros 8 caracteres del usuarioId para mantener unicidad pero hacerlo más corto
   // Si el usuarioId es muy corto, usar un hash simple
   let usuarioIdShort = '';
@@ -122,10 +132,10 @@ function generateQualificationId(qualification: Partial<TaxQualification>): stri
   } else {
     usuarioIdShort = 'unknown';
   }
-  
+
   // Construir ID legible: CAL-{tipo}-{mercado}-{periodo}-{usuarioIdShort}
   const id = `CAL-${tipoNorm}-${mercadoNorm}-${periodoNorm}-${usuarioIdShort}`;
-  
+
   // Limitar longitud total (Firestore tiene límite de 1500 bytes para IDs)
   // Pero normalmente no debería exceder esto
   return id.length > 150 ? id.substring(0, 150) : id;
@@ -143,7 +153,7 @@ export async function findExistingQualification(
     const tipoInstrumento = qualification.tipoInstrumento || '';
     const mercadoOrigen = qualification.mercadoOrigen || '';
     const periodo = qualification.periodo || '';
-    
+
     const q = query(
       collection(db, COLLECTION_NAME),
       where('usuarioId', '==', usuarioId),
@@ -154,7 +164,7 @@ export async function findExistingQualification(
     );
 
     const querySnapshot = await getDocs(q);
-    
+
     if (querySnapshot.empty) {
       return null;
     }
@@ -176,10 +186,17 @@ export async function createQualification(
   try {
     const id = generateQualificationId(qualification);
     const qualificationWithId = { ...qualification, id };
-    
+
     const docRef = doc(db, COLLECTION_NAME, id);
     await setDoc(docRef, toFirestoreFormat(qualificationWithId));
-    
+
+    // Actualizar estadísticas
+    const isValid = Object.values(qualification.factores).reduce((a, b) => a + b, 0) <= 1;
+    await updateUserStats(qualification.usuarioId, {
+      qualifications: 1,
+      validatedFactors: isValid ? 1 : 0
+    });
+
     return id;
   } catch (error) {
     console.error('Error creando calificación:', error);
@@ -215,7 +232,22 @@ export async function updateQualification(
 
     const docRef = doc(db, COLLECTION_NAME, id);
     const updateData = toFirestoreFormat(updatedQualification);
-    
+
+    // Verificar cambio en validación de factores para actualizar stats
+    if (qualification.factores) {
+      const oldSum = Object.values(existing.factores || {}).reduce((a: any, b: any) => a + b, 0);
+      const newSum = Object.values(qualification.factores).reduce((a: any, b: any) => a + b, 0);
+
+      const wasValid = oldSum <= 1;
+      const isValid = newSum <= 1;
+
+      if (wasValid !== isValid) {
+        await updateUserStats(existing.usuarioId, {
+          validatedFactors: isValid ? 1 : -1
+        });
+      }
+    }
+
     await setDoc(docRef, updateData, { merge: true });
   } catch (error) {
     console.error('Error actualizando calificación:', error);
@@ -230,11 +262,11 @@ export async function getQualificationById(id: string): Promise<TaxQualification
   try {
     const docRef = doc(db, COLLECTION_NAME, id);
     const docSnap = await getDoc(docRef);
-    
+
     if (!docSnap.exists()) {
       return null;
     }
-    
+
     return fromFirestoreFormat(docSnap);
   } catch (error) {
     console.error('Error obteniendo calificación:', error);
@@ -248,7 +280,7 @@ export async function getQualificationById(id: string): Promise<TaxQualification
  */
 export async function getQualificationsByBrokerId(
   brokerId: string,
-  maxResults: number = 100
+  maxResults: number = 100 // Si es 0 o negativo, obtiene todas las calificaciones
 ): Promise<TaxQualification[]> {
   try {
     if (!brokerId) {
@@ -256,35 +288,95 @@ export async function getQualificationsByBrokerId(
       return [];
     }
 
-    // Buscar solo por usuarioId (nuevo formato)
+    // Si maxResults es 0 o negativo, obtener todas las calificaciones con paginación
+    const needsPagination = maxResults <= 0 || maxResults > 1000;
+    const batchSize = 1000; // Límite máximo de Firestore por consulta
     let results: TaxQualification[] = [];
-    
-    try {
-      const q = query(
-        collection(db, COLLECTION_NAME),
-        where('usuarioId', '==', brokerId),
-        orderBy('fechaUltimaModificacion', 'desc'),
-        limit(maxResults)
-      );
-      const querySnapshot = await getDocs(q);
-      results = querySnapshot.docs.map(fromFirestoreFormat);
-    } catch (error: any) {
-      // Si falla por falta de índice, intentar sin orderBy
-      if (error?.code === 'failed-precondition') {
-        const q = query(
-          collection(db, COLLECTION_NAME),
-          where('usuarioId', '==', brokerId),
-          limit(maxResults)
-        );
+    let lastDoc: QueryDocumentSnapshot | null = null;
+    let hasMore = true;
+
+    while (hasMore) {
+      try {
+        let q;
+        if (lastDoc) {
+          q = query(
+            collection(db, COLLECTION_NAME),
+            where('usuarioId', '==', brokerId),
+            orderBy('fechaUltimaModificacion', 'desc'),
+            startAfter(lastDoc),
+            limit(batchSize)
+          );
+        } else {
+          q = query(
+            collection(db, COLLECTION_NAME),
+            where('usuarioId', '==', brokerId),
+            orderBy('fechaUltimaModificacion', 'desc'),
+            limit(needsPagination ? batchSize : maxResults)
+          );
+        }
+
         const querySnapshot = await getDocs(q);
-        results = querySnapshot.docs.map(fromFirestoreFormat);
-        // Ordenar manualmente
-        results.sort((a, b) => b.fechaUltimaModificacion.getTime() - a.fechaUltimaModificacion.getTime());
-      } else {
-        throw error;
+        const batchResults = querySnapshot.docs.map(fromFirestoreFormat);
+        results.push(...batchResults);
+
+        // Verificar si hay más resultados
+        hasMore = needsPagination && querySnapshot.docs.length === batchSize;
+        if (hasMore && querySnapshot.docs.length > 0) {
+          lastDoc = querySnapshot.docs[querySnapshot.docs.length - 1];
+        }
+
+        // Si hay un límite máximo y ya lo alcanzamos, detener
+        if (maxResults > 0 && results.length >= maxResults) {
+          hasMore = false;
+        }
+      } catch (error: any) {
+        // Si falla por falta de índice, intentar sin orderBy
+        if (error?.code === 'failed-precondition') {
+          console.warn('[getQualificationsByBrokerId] Índice no disponible, consultando sin orderBy...', error);
+          // Intentar sin orderBy
+          let q;
+          if (lastDoc) {
+            q = query(
+              collection(db, COLLECTION_NAME),
+              where('usuarioId', '==', brokerId),
+              startAfter(lastDoc),
+              limit(batchSize)
+            );
+          } else {
+            q = query(
+              collection(db, COLLECTION_NAME),
+              where('usuarioId', '==', brokerId),
+              limit(needsPagination ? batchSize : maxResults)
+            );
+          }
+
+          const querySnapshot = await getDocs(q);
+          const batchResults = querySnapshot.docs.map(fromFirestoreFormat);
+          results.push(...batchResults);
+
+          // Ordenar manualmente
+          results.sort((a, b) => b.fechaUltimaModificacion.getTime() - a.fechaUltimaModificacion.getTime());
+
+          // Verificar si hay más resultados
+          hasMore = needsPagination && querySnapshot.docs.length === batchSize;
+          if (hasMore && querySnapshot.docs.length > 0) {
+            lastDoc = querySnapshot.docs[querySnapshot.docs.length - 1];
+          }
+
+          // Si hay un límite máximo y ya lo alcanzamos, detener
+          if (maxResults > 0 && results.length >= maxResults) {
+            hasMore = false;
+          }
+        } else {
+          throw error;
+        }
       }
     }
 
+    // Limitar resultados si se especificó un límite
+    if (maxResults > 0) {
+      return results.slice(0, maxResults);
+    }
     return results;
   } catch (error) {
     console.error('[getQualificationsByBrokerId] Error obteniendo calificaciones:', error);
@@ -311,7 +403,7 @@ export async function processBulkUpload(
 ): Promise<BulkUploadResult> {
   const startTime = Date.now();
   console.log(`[BULK UPLOAD] Iniciando carga masiva de ${processedRecords.length} registros...`);
-  
+
   let added = 0;
   let updated = 0;
   let errors = 0;
@@ -319,16 +411,16 @@ export async function processBulkUpload(
   const errorRecords: ProcessedRecord[] = [];
 
   try {
-    // PASO 1: Obtener TODOS los registros existentes del corredor en UNA SOLA consulta
+    // Paso 1: Obtener todos los registros existentes del corredor en una sola consulta
     console.log('[BULK UPLOAD] Obteniendo registros existentes...');
     onProgress?.(0, processedRecords.length, 'Cargando registros existentes...');
-    
+
     const existingQuery = query(
       collection(db, COLLECTION_NAME),
       where('usuarioId', '==', brokerId)
     );
     const existingSnapshot = await getDocs(existingQuery);
-    
+
     // Crear un Map para búsqueda rápida O(1) de duplicados
     const existingMap = new Map<string, TaxQualification>();
     existingSnapshot.docs.forEach(doc => {
@@ -359,13 +451,13 @@ export async function processBulkUpload(
       // Buscar duplicado en memoria (O(1))
       const key = `${record.data.tipoInstrumento}-${record.data.mercadoOrigen}-${record.data.periodo}`.toLowerCase();
       const existing = existingMap.get(key);
-      
+
       if (existing) {
         // Registro existente - actualizar
         record.isDuplicate = true;
         record.existingId = existing.id;
         record.status = 'updated';
-        
+
         const docRef = doc(db, COLLECTION_NAME, existing.id);
         const updatedData: TaxQualification = {
           ...record.data,
@@ -373,7 +465,7 @@ export async function processBulkUpload(
           fechaCreacion: existing.fechaCreacion,
           fechaUltimaModificacion: new Date(),
         };
-        
+
         currentBatch.set(docRef, toFirestoreFormat(updatedData));
         operationsInBatch++;
         updated++;
@@ -388,7 +480,7 @@ export async function processBulkUpload(
           fechaCreacion: new Date(),
           fechaUltimaModificacion: new Date(),
         };
-        
+
         const docRef = doc(db, COLLECTION_NAME, id);
         currentBatch.set(docRef, toFirestoreFormat(newData));
         operationsInBatch++;
@@ -397,7 +489,7 @@ export async function processBulkUpload(
       }
 
       processedCount++;
-      
+
       // Reportar progreso cada 100 registros o al final
       if (processedCount % 100 === 0 || processedCount === processedRecords.length) {
         onProgress?.(processedCount, processedRecords.length, 'Procesando registros...');
@@ -418,18 +510,18 @@ export async function processBulkUpload(
       console.log(`[BATCH] Batch ${batches.length} preparado (${operationsInBatch} operaciones)`);
     }
 
-    // PASO 3: Ejecutar todos los batches en PARALELO
+    // Paso 3: Ejecutar todos los batches en paralelo
     console.log(`[BATCH] Ejecutando ${batches.length} batches en paralelo...`);
     onProgress?.(processedRecords.length, processedRecords.length, 'Guardando en base de datos...');
-    
+
     let completedBatches = 0;
     await Promise.all(batches.map(async (batch, index) => {
       console.log(`[BATCH] Ejecutando batch ${index + 1}/${batches.length}...`);
       await batch.commit();
       completedBatches++;
       onProgress?.(
-        processedRecords.length, 
-        processedRecords.length, 
+        processedRecords.length,
+        processedRecords.length,
         `Guardando batch ${completedBatches}/${batches.length}...`
       );
     }));
@@ -513,7 +605,22 @@ export async function searchQualifications(
 export async function deleteQualification(id: string): Promise<void> {
   try {
     const docRef = doc(db, COLLECTION_NAME, id);
-    await setDoc(docRef, { deleted: true, deletedAt: Timestamp.now() }, { merge: true });
+
+    // Obtener documento antes de borrar para actualizar stats
+    const docSnap = await getDoc(docRef);
+    if (docSnap.exists()) {
+      const data = docSnap.data();
+      const isValid = Object.values(data.factores || {}).reduce((a: any, b: any) => a + b, 0) <= 1;
+
+      await deleteDoc(docRef);
+
+      await updateUserStats(data.usuarioId, {
+        qualifications: -1,
+        validatedFactors: isValid ? -1 : 0
+      });
+    } else {
+      await deleteDoc(docRef);
+    }
   } catch (error) {
     console.error('Error eliminando calificación:', error);
     throw new Error('Error al eliminar la calificación');
@@ -529,6 +636,117 @@ export interface BrokerStats {
   validatedFactors: number;
   reportsGenerated: number;
   successRate: number;
+}
+
+/**
+ * Interfaz para la configuración de usuario
+ */
+export interface UserConfig {
+  userId: string;
+  dateFormat: string; // 'DD/MM/AAAA' | 'AAAA-MM-DD' | 'MM/DD/AAAA'
+  decimalSeparator: 'coma' | 'punto';
+  pageSize: number; // 10 | 25 | 50 | 100
+  notifications: boolean;
+  autoSave: boolean;
+  fechaUltimaModificacion: Date;
+}
+
+const USER_CONFIG_COLLECTION = 'userConfigs';
+const USER_STATS_COLLECTION = 'userStats';
+
+/**
+ * Actualiza las estadísticas del usuario de forma incremental
+ */
+async function updateUserStats(
+  userId: string,
+  change: {
+    qualifications?: number,
+    validatedFactors?: number,
+    reports?: number
+  }
+) {
+  try {
+    const statsRef = doc(db, USER_STATS_COLLECTION, userId);
+    const updates: any = {
+      fechaUltimaActualizacion: Timestamp.now()
+    };
+
+    if (change.qualifications) updates.totalQualifications = increment(change.qualifications);
+    if (change.validatedFactors) updates.validatedFactors = increment(change.validatedFactors);
+    if (change.reports) updates.reportsGenerated = increment(change.reports);
+
+    await setDoc(statsRef, updates, { merge: true });
+  } catch (error) {
+    console.error('Error actualizando estadísticas:', error);
+    // No lanzamos error para no interrumpir el flujo principal
+  }
+}
+
+/**
+ * Guarda la configuración del usuario en Firestore
+ */
+export async function saveUserConfig(userId: string, config: Partial<UserConfig>): Promise<void> {
+  try {
+    if (!userId) {
+      throw new Error('userId es requerido');
+    }
+
+    const configDocRef = doc(db, USER_CONFIG_COLLECTION, userId);
+
+    const configData = {
+      userId,
+      dateFormat: config.dateFormat || 'DD/MM/AAAA',
+      decimalSeparator: config.decimalSeparator || 'coma',
+      pageSize: config.pageSize || 10,
+      notifications: config.notifications !== undefined ? config.notifications : true,
+      autoSave: config.autoSave !== undefined ? config.autoSave : true,
+      fechaUltimaModificacion: Timestamp.fromDate(new Date()),
+    };
+
+    await setDoc(configDocRef, configData, { merge: true });
+
+    console.log('[saveUserConfig] Configuración guardada exitosamente para usuario:', userId);
+  } catch (error) {
+    console.error('[saveUserConfig] Error guardando configuración:', error);
+    throw error;
+  }
+}
+
+/**
+ * Obtiene la configuración del usuario desde Firestore
+ */
+export async function getUserConfig(userId: string): Promise<UserConfig | null> {
+  try {
+    if (!userId) {
+      console.warn('[getUserConfig] userId vacío');
+      return null;
+    }
+
+    const configDocRef = doc(db, USER_CONFIG_COLLECTION, userId);
+    const configDocSnap = await getDoc(configDocRef);
+
+    if (configDocSnap.exists()) {
+      const data = configDocSnap.data();
+      const config: UserConfig = {
+        userId: data.userId,
+        dateFormat: data.dateFormat || 'DD/MM/AAAA',
+        decimalSeparator: data.decimalSeparator || 'coma',
+        pageSize: data.pageSize || 10,
+        notifications: data.notifications !== undefined ? data.notifications : true,
+        autoSave: data.autoSave !== undefined ? data.autoSave : true,
+        fechaUltimaModificacion: data.fechaUltimaModificacion?.toDate() || new Date(),
+      };
+
+      console.log('[getUserConfig] Configuración cargada para usuario:', userId);
+      return config;
+    }
+
+    console.log('[getUserConfig] No se encontró configuración para usuario:', userId);
+    return null;
+  } catch (error) {
+    console.error('[getUserConfig] Error obteniendo configuración:', error);
+    return null;
+  }
 }
 
 /**
@@ -554,6 +772,26 @@ export async function getRecentQualifications(
 
 export async function getBrokerStats(brokerId: string): Promise<BrokerStats> {
   try {
+    // Intentar obtener estadísticas pre-calculadas
+    const statsRef = doc(db, USER_STATS_COLLECTION, brokerId);
+    const statsSnap = await getDoc(statsRef);
+
+    if (statsSnap.exists()) {
+      const data = statsSnap.data();
+      const total = data.totalQualifications || 0;
+      const validated = data.validatedFactors || 0;
+      const reports = data.reportsGenerated || 0;
+
+      return {
+        totalQualifications: total,
+        validatedFactors: validated,
+        reportsGenerated: reports,
+        successRate: total > 0 ? parseFloat(((validated / total) * 100).toFixed(1)) : 100
+      };
+    }
+
+    // Fallback: Calcular si no existen (primera vez)
+    console.log('Generando estadísticas iniciales...');
     const q = query(
       collection(db, COLLECTION_NAME),
       where('usuarioId', '==', brokerId)
@@ -561,22 +799,26 @@ export async function getBrokerStats(brokerId: string): Promise<BrokerStats> {
 
     const querySnapshot = await getDocs(q);
     const qualifications = querySnapshot.docs.map(fromFirestoreFormat);
-    
+
     const totalQualifications = qualifications.length;
-    
-    // Contar factores validados (suma <= 1)
     let validatedFactors = 0;
     qualifications.forEach(qual => {
       const sum = Object.values(qual.factores).reduce((acc, val) => acc + val, 0);
       if (sum <= 1) validatedFactors++;
     });
-    
-    // Reportes generados (simulado - implementar cuando exista la colección de reportes)
-    const reportsGenerated = Math.floor(totalQualifications / 10);
-    
-    // Tasa de éxito
-    const successRate = totalQualifications > 0 
-      ? (validatedFactors / totalQualifications) * 100 
+
+    const reportsGenerated = Math.floor(totalQualifications / 10); // Simulado inicial
+
+    // Guardar cálculo inicial
+    await setDoc(statsRef, {
+      totalQualifications,
+      validatedFactors,
+      reportsGenerated,
+      fechaUltimaActualizacion: Timestamp.now()
+    });
+
+    const successRate = totalQualifications > 0
+      ? (validatedFactors / totalQualifications) * 100
       : 100;
 
     return {

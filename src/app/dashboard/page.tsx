@@ -14,27 +14,31 @@
  * - Uso de datos simulados (mock data) para demostración.
  */
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, lazy, Suspense, memo } from 'react'
 import { useRouter } from 'next/navigation'
-import { auth, db } from '../firebase/config'
+import { auth } from '../firebase/config'
 import { signOut, onAuthStateChanged } from 'firebase/auth'
-import { collection, query, where, getDocs } from 'firebase/firestore'
-import OverviewSection from './components/OverviewSection'
-import QualificationsSection from './components/QualificationsSection'
-import UploadSection from './components/UploadSection'
-import ReportsSection from './components/ReportsSection'
+import LoadingSpinner from '../components/LoadingSpinner'
 import Image from 'next/image'
 import { NUAM_LOGO_PATH } from '../utils/paths'
 import Icons from '../utils/icons'
-import SettingsSection from './components/SettingsSection'
+
+// Lazy loading de todos los componentes de sección para mejorar el rendimiento inicial
+const OverviewSection = lazy(() => import('./components/OverviewSection'))
+const QualificationsSection = lazy(() => import('./components/QualificationsSection'))
+const ContributorsSection = lazy(() => import('./components/ContributorsSection'))
+const UploadSection = lazy(() => import('./components/UploadSection'))
+const ReportsSection = lazy(() => import('./components/ReportsSection'))
+const SettingsSection = lazy(() => import('./components/SettingsSection'))
 
 // Importación de tipos de datos para una mayor consistencia y seguridad.
 import { MenuItem, ActiveTab } from './components/types'
 
 // Importar funciones para obtener datos reales
-import { getBrokerStats, type BrokerStats } from '../services/firestoreService'
+import { getBrokerStats, type BrokerStats, getUserConfig, type UserConfig } from '../services/firestoreService'
 import { useAuth } from '../context/AuthContext'
 import { logLogout } from '../services/auditService'
+import { useFirestoreCache } from '../hooks/useFirestoreCache'
 
 // Componente principal del Dashboard.
 export default function Dashboard() {
@@ -49,6 +53,7 @@ export default function Dashboard() {
   const [dateFormat, setDateFormat] = useState('DD/MM/AAAA') // Formato de fecha preferido.
   const [decimalSeparator, setDecimalSeparator] = useState('coma') // Separador de decimales.
   const [pageSize, setPageSize] = useState(10) // Cantidad de elementos por página en las tablas.
+  const [loadingConfig, setLoadingConfig] = useState(true) // Estado de carga de configuración.
 
   // Estados para estadísticas reales
   const [brokerStats, setBrokerStats] = useState<BrokerStats>({
@@ -59,40 +64,65 @@ export default function Dashboard() {
   })
   const [loadingStats, setLoadingStats] = useState(true)
 
-  // Cargar estadísticas reales al montar el componente
+  // Cargar configuración del usuario con caché
+  const { data: cachedConfig, loading: configCacheLoading } = useFirestoreCache<UserConfig | null>(
+    `user-config-${userProfile?.uid || ''}`,
+    () => {
+      if (!userProfile?.uid) return Promise.resolve(null)
+      return getUserConfig(userProfile.uid)
+    },
+    10 * 60 * 1000 // 10 minutos de caché para configuración
+  )
+
   useEffect(() => {
-    if (!userProfile?.uid) return;
+    if (cachedConfig) {
+      setDateFormat(cachedConfig.dateFormat)
+      setDecimalSeparator(cachedConfig.decimalSeparator)
+      setPageSize(cachedConfig.pageSize)
+    }
+    setLoadingConfig(configCacheLoading)
+  }, [cachedConfig, configCacheLoading])
 
-    const loadStats = async () => {
-      try {
-        const stats = await getBrokerStats(userProfile.uid)
-        setBrokerStats(stats)
-      } catch (error) {
-        console.error('Error cargando estadísticas:', error)
-      } finally {
-        setLoadingStats(false)
+  // Cargar estadísticas con caché
+  const { data: cachedStats, loading: statsCacheLoading, invalidateCache: invalidateStatsCache } = useFirestoreCache<BrokerStats>(
+    `broker-stats-${userProfile?.uid || ''}`,
+    () => {
+      if (!userProfile?.uid) {
+        return Promise.resolve({
+          totalQualifications: 0,
+          validatedFactors: 0,
+          reportsGenerated: 0,
+          successRate: 0
+        })
       }
-    }
-    loadStats()
+      return getBrokerStats(userProfile.uid)
+    },
+    2 * 60 * 1000 // 2 minutos de caché para estadísticas
+  )
 
-    // Listener para recargar estadísticas después de carga masiva (mejora #3)
+  useEffect(() => {
+    if (cachedStats) {
+      setBrokerStats(cachedStats)
+    }
+    setLoadingStats(statsCacheLoading)
+  }, [cachedStats, statsCacheLoading])
+
+  // Listener para recargar estadísticas después de carga masiva
+  useEffect(() => {
     const handleReloadStats = () => {
-      console.log('[STATS] Recargando estadísticas del corredor...')
-      setLoadingStats(true)
-      loadStats()
+      invalidateStatsCache()
     }
-
     window.addEventListener('reloadBrokerStats', handleReloadStats)
-
     return () => {
       window.removeEventListener('reloadBrokerStats', handleReloadStats)
     }
-  }, [userProfile?.uid])
+  }, [invalidateStatsCache])
 
   // Define los elementos del menú de navegación.
   const menuItems: MenuItem[] = [
     { id: 'overview', label: 'Resumen General', icon: <Icons.Dashboard className="w-5 h-5" /> },
     { id: 'qualifications', label: 'Calificaciones', icon: <Icons.FileText className="w-5 h-5" /> },
+    { id: 'contributors', label: 'Contribuyentes', icon: <Icons.Users className="w-5 h-5" /> },
     { id: 'upload', label: 'Carga Masiva', icon: <Icons.Upload className="w-5 h-5" /> },
     { id: 'reports', label: 'Reportes', icon: <Icons.BarChart className="w-5 h-5" /> },
     { id: 'settings', label: 'Configuración', icon: <Icons.Settings className="w-5 h-5" /> }
@@ -118,48 +148,71 @@ export default function Dashboard() {
 
   // --- RENDERIZADO CONDICIONAL ---
   // Función que decide qué componente de sección mostrar según la pestaña activa.
+  // Todos los componentes usan lazy loading con Suspense para mejorar el rendimiento inicial.
+  // Fallback con spinner ligero para feedback visual sin retrasos
   const renderMainContent = () => {
     switch (activeTab) {
       case 'overview':
         return (
-          <OverviewSection
-            brokerId={userProfile?.uid || ''}
-            setActiveTab={setActiveTab}
-          />
+          <Suspense fallback={<LoadingSpinner />}>
+            <OverviewSection
+              brokerId={userProfile?.uid || ''}
+              setActiveTab={setActiveTab}
+            />
+          </Suspense>
         )
       case 'qualifications':
         return (
-          <QualificationsSection
-            brokerId={userProfile?.uid || ''}
-            setActiveTab={setActiveTab}
-            pageSize={pageSize}
-          />
+          <Suspense fallback={<LoadingSpinner />}>
+            <QualificationsSection
+              brokerId={userProfile?.uid || ''}
+              setActiveTab={setActiveTab}
+              pageSize={pageSize}
+              dateFormat={dateFormat}
+            />
+          </Suspense>
+        )
+      case 'contributors':
+        return (
+          <Suspense fallback={<LoadingSpinner />}>
+            <ContributorsSection />
+          </Suspense>
         )
       case 'upload':
         return (
-          <UploadSection
-            brokerId={userProfile?.uid || ''}
-          />
+          <Suspense fallback={<LoadingSpinner />}>
+            <UploadSection
+              brokerId={userProfile?.uid || ''}
+            />
+          </Suspense>
         )
       case 'reports':
-        return <ReportsSection />
+        return (
+          <Suspense fallback={<LoadingSpinner />}>
+            <ReportsSection />
+          </Suspense>
+        )
       case 'settings':
         return (
-          <SettingsSection
-            dateFormat={dateFormat}
-            setDateFormat={setDateFormat}
-            decimalSeparator={decimalSeparator}
-            setDecimalSeparator={setDecimalSeparator}
-            pageSize={pageSize}
-            setPageSize={setPageSize}
-          />
+          <Suspense fallback={<LoadingSpinner />}>
+            <SettingsSection
+              dateFormat={dateFormat}
+              setDateFormat={setDateFormat}
+              decimalSeparator={decimalSeparator}
+              setDecimalSeparator={setDecimalSeparator}
+              pageSize={pageSize}
+              setPageSize={setPageSize}
+            />
+          </Suspense>
         )
       default:
         return (
-          <OverviewSection
-            brokerId={userProfile?.uid || ''}
-            setActiveTab={setActiveTab}
-          />
+          <Suspense fallback={<LoadingSpinner />}>
+            <OverviewSection
+              brokerId={userProfile?.uid || ''}
+              setActiveTab={setActiveTab}
+            />
+          </Suspense>
         )
     }
   }
@@ -207,10 +260,13 @@ export default function Dashboard() {
 
       {/* --- MENÚ DE NAVEGACIÓN DESPLEGABLE (MÓVIL) --- */}
       <div
+        id="mobile-menu"
         className={`lg:hidden fixed inset-x-0 top-[73px] z-40 transition-all duration-500 transform ${mobileMenuOpen
           ? 'translate-y-0 opacity-100'
           : '-translate-y-full opacity-0 pointer-events-none'
           }`}
+        role="menu"
+        aria-label="Menú de navegación"
       >
         <div className="backdrop-blur-2xl bg-black/40 border-b border-white/20">
           <div className="px-6 py-6 space-y-2">
@@ -221,10 +277,12 @@ export default function Dashboard() {
                   setActiveTab(item.id as ActiveTab)
                   setMobileMenuOpen(false)
                 }}
-                className={`w-full text-left px-4 py-3 rounded-xl transition-all flex items-center space-x-3 ${activeTab === item.id
+                role="menuitem"
+                className={`w-full text-left px-4 py-3 rounded-xl transition-all flex items-center space-x-3 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-offset-2 focus:ring-offset-slate-900 ${activeTab === item.id
                   ? 'bg-gradient-to-r from-orange-600/30 to-amber-600/30 text-orange-300'
                   : 'text-white/90 hover:text-orange-400 hover:bg-white/10'
                   }`}
+                aria-current={activeTab === item.id ? 'page' : undefined}
               >
                 <span className="text-xl">{item.icon}</span>
                 <span>{item.label}</span>

@@ -1,9 +1,10 @@
 /**
- * @file auditService.ts
- * @description Servicio de Auditoría del Sistema
+ * Servicio de Auditoría del Sistema
  * 
- * Registra automáticamente todos los eventos importantes del sistema
- * para cumplir con requisitos de trazabilidad y seguridad (ISO 27001)
+ * Registra automáticamente todos los eventos importantes del sistema para cumplir
+ * con requisitos de trazabilidad y seguridad. Incluye creación, actualización y
+ * eliminación de calificaciones, exportación de reportes, cargas masivas y cambios
+ * de configuración. Todos los eventos incluyen timestamp, usuario, acción y detalles relevantes.
  */
 
 import { collection, addDoc, Timestamp, query, where, orderBy, limit, getDocs } from 'firebase/firestore';
@@ -12,12 +13,12 @@ import { db } from '../firebase/config';
 /**
  * Tipos de acciones auditables
  */
-export type AuditAction = 
-  | 'LOGIN' 
-  | 'LOGOUT' 
-  | 'CREATE' 
-  | 'UPDATE' 
-  | 'DELETE' 
+export type AuditAction =
+  | 'LOGIN'
+  | 'LOGOUT'
+  | 'CREATE'
+  | 'UPDATE'
+  | 'DELETE'
   | 'UPLOAD'
   | 'EXPORT'
   | 'PASSWORD_RESET';
@@ -25,10 +26,10 @@ export type AuditAction =
 /**
  * Tipos de recursos auditables
  */
-export type AuditResource = 
-  | 'system' 
-  | 'user' 
-  | 'qualification' 
+export type AuditResource =
+  | 'system'
+  | 'user'
+  | 'qualification'
   | 'report';
 
 /**
@@ -60,13 +61,21 @@ export interface AuditLog {
  */
 export async function logAuditEvent(log: AuditLog): Promise<string> {
   try {
-    const auditLogData = {
+    // Sanitize log data to remove undefined values but preserve Timestamp
+    const cleanLog = JSON.parse(JSON.stringify({
       ...log,
-      timestamp: Timestamp.fromDate(log.timestamp),
+      // Temporarily remove timestamp to avoid stringification
+      timestamp: null
+    }));
+
+    // Restore the proper Timestamp object
+    const sanitizedLog = {
+      ...cleanLog,
+      timestamp: Timestamp.fromDate(log.timestamp)
     };
 
-    const docRef = await addDoc(collection(db, 'auditLogs'), auditLogData);
-    
+    const docRef = await addDoc(collection(db, 'auditLogs'), sanitizedLog);
+
     console.log('[AUDIT] Log registered:', {
       action: log.action,
       resource: log.resource,
@@ -361,7 +370,7 @@ export async function getRecentActivity(
     }
 
     let querySnapshot;
-    
+
     try {
       // Intentar consulta con índice compuesto
       const q = query(
@@ -374,11 +383,11 @@ export async function getRecentActivity(
     } catch (error: any) {
       // Si falla por falta de índice, intentar sin orderBy y ordenar manualmente
       if (error?.code === 'failed-precondition' || error?.message?.includes('index')) {
-        console.warn('[getRecentActivity] Índice no disponible, consultando sin orderBy...');
+        console.warn('[getRecentActivity] Índice no disponible, consultando sin orderBy...', error);
         const q = query(
           collection(db, 'auditLogs'),
           where('userId', '==', userId),
-          limit(limitCount * 2) // Obtener más para compensar la falta de orden
+          limit(300) // Aumentar límite para asegurar que los logs recientes estén incluidos (sin índice no podemos garantizar orden)
         );
         querySnapshot = await getDocs(q);
       } else {
@@ -390,9 +399,24 @@ export async function getRecentActivity(
 
     const docsWithTimestamps = querySnapshot.docs.map(doc => {
       const data = doc.data();
+      let timestamp = new Date();
+
+      try {
+        if (data.timestamp?.toDate) {
+          timestamp = data.timestamp.toDate();
+        } else if (data.timestamp) {
+          const parsed = new Date(data.timestamp);
+          if (!isNaN(parsed.getTime())) {
+            timestamp = parsed;
+          }
+        }
+      } catch (e) {
+        console.warn('Error parsing timestamp for log:', doc.id, e);
+      }
+
       return {
         doc,
-        timestamp: data.timestamp?.toDate() || new Date(),
+        timestamp,
         data,
       };
     });

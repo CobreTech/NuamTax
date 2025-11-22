@@ -136,7 +136,7 @@ function LoginContent() {
     setShowRegisterModal(true)
   }
 
-  // Auto-abrir modal de auth admin con ?register=1 (para admins que quieran crear usuarios directamente)
+  // Auto-abrir modal de autenticación de administrador con ?register=1 para permitir creación directa de usuarios
   useEffect(() => {
     const shouldOpen = searchParams?.get('register') === '1'
     if (shouldOpen) {

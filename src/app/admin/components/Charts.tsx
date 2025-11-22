@@ -65,24 +65,24 @@ export default function Charts() {
       // Últimos 7 días
       const days = [];
       const counts = [];
-      
+
       for (let i = 6; i >= 0; i--) {
         const date = new Date();
         date.setDate(date.getDate() - i);
         date.setHours(0, 0, 0, 0);
-        
+
         const nextDay = new Date(date);
         nextDay.setDate(nextDay.getDate() + 1);
-        
+
         const logsQuery = query(
           collection(db, 'auditLogs'),
           where('timestamp', '>=', Timestamp.fromDate(date)),
           where('timestamp', '<', Timestamp.fromDate(nextDay))
         );
-        
+
         const logsSnap = await getDocs(logsQuery);
         const count = logsSnap.size;
-        
+
         days.push(date.toLocaleDateString('es', { weekday: 'short', day: 'numeric' }));
         counts.push(count);
       }
@@ -123,7 +123,7 @@ export default function Charts() {
     try {
       const usersSnap = await getDocs(collection(db, 'users'));
       const users = usersSnap.docs.map(doc => doc.data());
-      
+
       const corredores = users.filter((u: any) => u.rol === 'Corredor').length;
       const administradores = users.filter((u: any) => u.rol === 'Administrador').length;
 
@@ -155,25 +155,25 @@ export default function Charts() {
       // Últimos 6 meses
       const months = [];
       const counts = [];
-      
+
       for (let i = 5; i >= 0; i--) {
         const date = new Date();
         date.setMonth(date.getMonth() - i);
         date.setDate(1);
         date.setHours(0, 0, 0, 0);
-        
+
         const nextMonth = new Date(date);
         nextMonth.setMonth(nextMonth.getMonth() + 1);
-        
+
         const qualQuery = query(
-          collection(db, 'calificaciones'),
+          collection(db, 'tax-qualifications'),
           where('fechaCreacion', '>=', Timestamp.fromDate(date)),
           where('fechaCreacion', '<', Timestamp.fromDate(nextMonth))
         );
-        
+
         const qualSnap = await getDocs(qualQuery);
         const count = qualSnap.size;
-        
+
         months.push(date.toLocaleDateString('es', { month: 'short' }));
         counts.push(count);
       }
