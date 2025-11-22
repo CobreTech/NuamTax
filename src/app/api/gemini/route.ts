@@ -17,7 +17,7 @@ export async function POST(req: Request) {
         // 2. Obtener mensaje y contexto desde el Frontend
         const { message, contextData } = await req.json();
 
-        // 3. Configurar Modelo (Usamos 2.0-flash por ser rápido y eficiente)
+        // 3. Configurar Modelo
         const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
 
         // 4. Crear el Prompt del Sistema según el tipo de contexto
