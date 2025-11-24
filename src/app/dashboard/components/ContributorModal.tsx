@@ -6,7 +6,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { Contributor } from './types';
-import { formatRut, validateRut } from '@/app/services/contributorService';
+import { formatRUT, validateRUT } from '@/app/utils/rutUtils';
 import Icons from '@/app/utils/icons';
 import CustomDropdown from '@/app/components/CustomDropdown';
 import Portal from '@/app/components/Portal';
@@ -68,11 +68,11 @@ export function ContributorModal({ isOpen, onClose, onSave, contributor, mode }:
 
     const handleRutChange = (value: string) => {
         // Auto-format RUT as user types
-        const formatted = formatRut(value);
+        const formatted = formatRUT(value);
         setFormData(prev => ({ ...prev, rut: formatted }));
 
         // Validate
-        if (value && !validateRut(formatted)) {
+        if (value && !validateRUT(formatted)) {
             setErrors(prev => ({ ...prev, rut: 'RUT inválido' }));
         } else {
             setErrors(prev => ({ ...prev, rut: '' }));
@@ -87,7 +87,7 @@ export function ContributorModal({ isOpen, onClose, onSave, contributor, mode }:
 
         if (!formData.rut) {
             newErrors.rut = 'RUT es requerido';
-        } else if (!validateRut(formData.rut)) {
+        } else if (!validateRUT(formData.rut)) {
             newErrors.rut = 'RUT inválido';
         }
 

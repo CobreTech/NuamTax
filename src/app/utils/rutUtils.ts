@@ -14,11 +14,15 @@ export function validateRUT(rut: string): boolean {
     return false;
   }
 
-  // Limpiar el RUT: remover puntos, espacios y convertir a mayúsculas
-  const cleanRUT = rut.replace(/\./g, '').replace(/\s/g, '').replace(/-/g, '').toUpperCase();
+  // Limpiar el RUT: remover puntos, espacios, guiones y ceros a la izquierda
+  let cleanRUT = rut.replace(/\./g, '').replace(/\s/g, '').replace(/-/g, '').toUpperCase();
 
-  // Verificar formato básico (debe tener al menos 7 dígitos + 1 dígito verificador)
-  if (cleanRUT.length < 8 || cleanRUT.length > 9) {
+  // Remover ceros a la izquierda
+  cleanRUT = cleanRUT.replace(/^0+/, '');
+
+  // Verificar formato básico (debe tener al menos 7 dígitos: 1 dígito número + 1 dígito verificador, aunque en la práctica son más)
+  // RUT mínimo teórico: 1-9 (longitud 2). RUT razonable mínimo: 100.000-0 (longitud 7)
+  if (cleanRUT.length < 2 || cleanRUT.length > 9) {
     return false;
   }
 
@@ -76,12 +80,12 @@ export function formatRUT(rut: string): string {
     return '';
   }
 
-  // Limpiar el RUT
-  const cleanRUT = rut.replace(/\./g, '').replace(/\s/g, '').replace(/-/g, '').toUpperCase();
+  // Limpiar el RUT y remover ceros a la izquierda
+  const cleanRUT = rut.replace(/\./g, '').replace(/\s/g, '').replace(/-/g, '').toUpperCase().replace(/^0+/, '');
 
-  // Verificar longitud mínima
-  if (cleanRUT.length < 8) {
-    return cleanRUT; // Retornar sin formatear si es muy corto
+  // Verificar longitud mínima (al menos 2 caracteres: 1 número + 1 DV)
+  if (cleanRUT.length < 2) {
+    return cleanRUT;
   }
 
   // Separar número y dígito verificador
@@ -104,7 +108,7 @@ export function formatRUT(rut: string): string {
 }
 
 /**
- * Limpia un RUT removiendo puntos y guiones
+ * Limpia un RUT removiendo puntos, guiones y ceros a la izquierda
  * @param rut - RUT en cualquier formato
  * @returns RUT limpio (solo números y dígito verificador)
  */
@@ -112,7 +116,7 @@ export function cleanRUT(rut: string): string {
   if (!rut || typeof rut !== 'string') {
     return '';
   }
-  return rut.replace(/\./g, '').replace(/\s/g, '').replace(/-/g, '').toUpperCase();
+  return rut.replace(/\./g, '').replace(/\s/g, '').replace(/-/g, '').toUpperCase().replace(/^0+/, '');
 }
 
 /**

@@ -37,17 +37,44 @@ export default function AdminAuthModal({ open, onClose, onSuccess }: Props) {
     setLoading(true);
     setError("");
 
+    let secondaryApp: any = null;
+
     try {
-      // 1. Autenticar con Firebase Auth
-      const userCredential = await signInWithEmailAndPassword(auth, email, password);
+      // 1. Inicializar una app secundaria para no afectar la sesión actual
+      // Importamos dinámicamente para asegurar acceso a las funciones necesarias
+      const { initializeApp, getApps, getApp, deleteApp } = await import("firebase/app");
+      const { getAuth, signInWithEmailAndPassword, signOut } = await import("firebase/auth");
+      const { getFirestore, doc, getDoc } = await import("firebase/firestore");
+
+      // Configuración de Firebase (la misma que en config.ts)
+      const firebaseConfig = {
+        apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
+        authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
+        projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
+        storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
+        messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
+        appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
+      };
+
+      // Crear o recuperar app secundaria
+      const secondaryAppName = "secondaryAuthApp";
+      const apps = getApps();
+      secondaryApp = apps.find(app => app.name === secondaryAppName) || initializeApp(firebaseConfig, secondaryAppName);
+
+      // 2. Autenticar en la app secundaria
+      const secondaryAuth = getAuth(secondaryApp);
+      const userCredential = await signInWithEmailAndPassword(secondaryAuth, email, password);
       const userId = userCredential.user.uid;
 
-      // 2. Verificar rol en Firestore
-      const userDocRef = doc(db, "users", userId);
+      // 3. Verificar rol en Firestore (usando la instancia de la app secundaria si es necesario, 
+      // o la principal si las reglas lo permiten. Usaremos la secundaria para ser consistentes)
+      const secondaryDb = getFirestore(secondaryApp);
+      const userDocRef = doc(secondaryDb, "users", userId);
       const userDocSnap = await getDoc(userDocRef);
 
       if (!userDocSnap.exists()) {
         setError("Usuario no encontrado en el sistema.");
+        await signOut(secondaryAuth);
         setLoading(false);
         return;
       }
@@ -55,23 +82,27 @@ export default function AdminAuthModal({ open, onClose, onSuccess }: Props) {
       const userData = userDocSnap.data();
       const userRole = userData.rol;
 
-      // 3. Verificar que sea Administrador
+      // 4. Verificar que sea Administrador
       if (userRole !== "Administrador") {
         setError("Acceso denegado. Solo los administradores pueden registrar nuevos usuarios.");
+        await signOut(secondaryAuth);
         setLoading(false);
         return;
       }
 
-      // 4. Autenticación exitosa
-      console.log("✅ Administrador autenticado correctamente");
+      // 5. Autenticación exitosa - Cerrar sesión en secundaria inmediatamente
+      await signOut(secondaryAuth);
+
+      console.log("✅ Administrador verificado correctamente (sin inicio de sesión global)");
       onSuccess();
       resetForm();
       onClose();
+
     } catch (err: any) {
-      console.error("Error en autenticación de admin:", err);
+      console.error("Error en verificación de admin:", err);
       const code = err?.code || "unknown";
-      
-      let friendlyMessage = "Error al autenticar. Verifica tus credenciales.";
+
+      let friendlyMessage = "Error al verificar. Revisa tus credenciales.";
       if (code === "auth/invalid-credential" || code === "auth/wrong-password") {
         friendlyMessage = "Credenciales incorrectas.";
       } else if (code === "auth/user-not-found") {
@@ -79,10 +110,12 @@ export default function AdminAuthModal({ open, onClose, onSuccess }: Props) {
       } else if (code === "auth/too-many-requests") {
         friendlyMessage = "Demasiados intentos. Intenta más tarde.";
       }
-      
+
       setError(friendlyMessage);
     } finally {
       setLoading(false);
+      // Opcional: Limpiar la app secundaria si se desea
+      // if (secondaryApp) deleteApp(secondaryApp).catch(console.error);
     }
   };
 
@@ -125,7 +158,7 @@ export default function AdminAuthModal({ open, onClose, onSuccess }: Props) {
             </div>
             <h2 className="text-2xl font-bold">Autenticación de Administrador</h2>
             <p className="text-sm text-gray-400 mt-2">
-              Solo los administradores pueden registrar nuevos usuarios. Por favor, ingresa tus credenciales de administrador.
+              Esta acción requiere privilegios de administrador.
             </p>
           </div>
 
@@ -205,7 +238,7 @@ export default function AdminAuthModal({ open, onClose, onSuccess }: Props) {
                   Verificando...
                 </span>
               ) : (
-                "Verificar y Continuar"
+                "Verificar"
               )}
             </button>
           </div>

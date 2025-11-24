@@ -17,7 +17,7 @@ import { updateQualification, getQualificationById, createQualification } from '
 import { validateFactorsSum } from '../../services/taxValidationService'
 import { logQualificationUpdated, logQualificationCreated } from '../../services/auditService'
 import { useAuth } from '../../context/AuthContext'
-import { validateAndFormatRUT } from '../../utils/rutUtils'
+import { validateAndFormatRUT, formatRUT } from '../../utils/rutUtils'
 import { formatDate, parseDate, getCurrentDateFormatted, normalizeDateForStorage } from '../../utils/dateUtils'
 import Icons from '../../utils/icons'
 import CustomDropdown from '../../components/CustomDropdown'
@@ -227,568 +227,426 @@ export default function EditQualificationModal({
     return Object.keys(newErrors).length === 0
   }
 
-  const handleSave = async () => {
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
     if (!validateForm()) return
 
     setIsSaving(true)
     try {
+      // Convertir período formateado a formato de almacenamiento YYYY-MM-DD
+      const storageDate = normalizeDateForStorage(periodoFormatted, dateFormat)
+
+      const qualificationData: TaxQualification = {
+        ...formData as TaxQualification,
+        factores,
+        creditosConfig,
+        periodo: storageDate, // Usar fecha normalizada
+        usuarioId: userProfile?.uid || 'unknown',
+        fechaCreacion: qualification?.fechaCreacion || new Date(),
+        fechaUltimaModificacion: new Date()
+      }
+
       if (isCreateMode) {
-        // Modo creación
-        if (!userProfile) {
-          throw new Error('Usuario no autenticado')
-        }
-
-        // En modo creación, el RUT contribuyente es obligatorio y ya está validado
-        if (!formData.rutContribuyente) {
-          throw new Error('El RUT del contribuyente es obligatorio')
-        }
-
-        // Normalizar período a formato estándar (YYYY-MM-DD) para almacenamiento
-        const parsedPeriodo = parseDate(periodoFormatted, dateFormat)
-        if (!parsedPeriodo) {
-          throw new Error('El período no es una fecha válida')
-        }
-        const periodoNormalized = normalizeDateForStorage(periodoFormatted, dateFormat)
-
-        const newQualification: TaxQualification = {
-          id: '', // Se generará en createQualification
-          usuarioId: userProfile.uid,
-          tipoInstrumento: formData.tipoInstrumento!,
-          mercadoOrigen: formData.mercadoOrigen!,
-          periodo: periodoNormalized, // Normalizado a YYYY-MM-DD
-          tipoCalificacion: formData.tipoCalificacion,
-          esNoInscrita: formData.esNoInscrita || false,
-          factores,
-          creditosConfig, // Incluir configuración de créditos
-          monto: formData.monto || { valor: 0, moneda: 'CLP' },
-          rutContribuyente: formData.rutContribuyente, // Obligatorio en modo creación
-          fechaCreacion: new Date(),
-          fechaUltimaModificacion: new Date(),
-        }
-
-        const qualificationId = await createQualification(newQualification)
-
-        // Registrar log de auditoría
-        if (userProfile) {
-          await logQualificationCreated(
-            userProfile.uid,
-            userProfile.email || '',
-            `${userProfile.Nombre} ${userProfile.Apellido}`,
-            qualificationId,
-            {
-              tipoInstrumento: newQualification.tipoInstrumento,
-              mercadoOrigen: newQualification.mercadoOrigen,
-              periodo: newQualification.periodo,
-            }
-          )
-        }
-      } else {
-        // Modo edición
-        if (!qualification) return
-
-        // Obtener datos antes de actualizar para el log de auditoría
-        const beforeData = await getQualificationById(qualification.id)
-
-        // Preparar datos para actualizar, asegurando que monto tenga la estructura correcta
-        const updateData: Partial<TaxQualification> = {
-          tipoInstrumento: formData.tipoInstrumento,
-          mercadoOrigen: formData.mercadoOrigen,
-          periodo: formData.periodo,
-          tipoCalificacion: formData.tipoCalificacion,
-          esNoInscrita: formData.esNoInscrita,
-          factores,
-          creditosConfig, // Incluir configuración de créditos
-          monto: formData.monto || { valor: 0, moneda: 'CLP' },
-          rutContribuyente: formData.rutContribuyente || undefined,
-        };
-
-        await updateQualification(qualification.id, updateData)
-
-        // Obtener datos después de actualizar para el log de auditoría
-        const afterData = await getQualificationById(qualification.id)
-
-        // Registrar log de auditoría
-        if (userProfile && beforeData && afterData) {
-          await logQualificationUpdated(
-            userProfile.uid,
-            userProfile.email || '',
-            `${userProfile.Nombre} ${userProfile.Apellido}`,
-            qualification.id,
-            {
-              tipoInstrumento: beforeData.tipoInstrumento,
-              mercadoOrigen: beforeData.mercadoOrigen,
-              periodo: beforeData.periodo,
-            },
-            {
-              tipoInstrumento: afterData.tipoInstrumento,
-              mercadoOrigen: afterData.mercadoOrigen,
-              periodo: afterData.periodo,
-            }
-          )
-        }
+        const id = await createQualification(qualificationData)
+        // Registrar auditoría de creación
+        await logQualificationCreated(
+          userProfile?.uid || 'unknown',
+          userProfile?.email || 'unknown',
+          `${userProfile?.Nombre || ''} ${userProfile?.Apellido || ''}`.trim(),
+          id,
+          qualificationData
+        )
+      } else if (qualification?.id) {
+        await updateQualification(qualification.id, qualificationData)
+        // Registrar auditoría de actualización
+        await logQualificationUpdated(
+          userProfile?.uid || 'unknown',
+          userProfile?.email || 'unknown',
+          `${userProfile?.Nombre || ''} ${userProfile?.Apellido || ''}`.trim(),
+          qualification.id,
+          qualification,
+          qualificationData
+        )
       }
 
       onSave()
       onClose()
     } catch (error) {
-      console.error('Error guardando calificación:', error)
-      setErrors({
-        submit: isCreateMode
-          ? 'Error al crear la calificación. Intente nuevamente.'
-          : 'Error al guardar la calificación. Intente nuevamente.'
-      })
+      console.error('Error saving qualification:', error)
+      setErrors({ submit: 'Error al guardar la calificación. Intente nuevamente.' })
     } finally {
       setIsSaving(false)
     }
   }
 
-  if (!isOpen) return null
-  // Permitir que el modal se abra en modo creación aunque qualification sea null
-  if (!isCreateMode && !qualification) return null
+  // Manejo de teclado
+  const modalContainerRef = useRef<HTMLDivElement>(null)
+  useFocusTrap(modalContainerRef, isOpen)
+  useKeyboardNavigation({
+    onEscape: onClose,
+    onEnter: (e) => {
+      // Solo enviar si no es un textarea o botón
+      const target = e.target as HTMLElement
+      if (target.tagName !== 'TEXTAREA' && target.tagName !== 'BUTTON') {
+        handleSubmit(e as any)
+      }
+    }
+  })
 
-  const factorKeys: (keyof TaxFactors)[] = ['factor8', 'factor9', 'factor10', 'factor11', 'factor12', 'factor13',
-    'factor14', 'factor15', 'factor16']
+  // Foco inicial
+  useEffect(() => {
+    if (isOpen && firstInputRef.current) {
+      setTimeout(() => {
+        firstInputRef.current?.focus()
+      }, 100)
+    }
+  }, [isOpen])
+
+  if (!isOpen) return null
 
   return (
     <Portal>
-      <div
-        className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="qualification-modal-title"
-      >
+      <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fade-in">
         <div
-          ref={modalRef}
-          className="backdrop-blur-xl bg-slate-900/90 border border-white/20 rounded-2xl p-6 lg:p-8 max-w-4xl w-full max-h-[90vh] overflow-y-auto shadow-2xl"
+          ref={modalContainerRef}
+          className="bg-[#0A0A0A] border border-white/10 rounded-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden shadow-2xl flex flex-col"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="modal-title"
         >
-          <div className="flex justify-between items-center mb-6">
-            <h2 id="qualification-modal-title" className="text-2xl font-bold text-white">
-              {isCreateMode ? 'Nueva Calificación Tributaria' : 'Editar Calificación Tributaria'}
-            </h2>
+          {/* Header */}
+          <div className="flex items-center justify-between p-6 border-b border-white/10 bg-white/5">
+            <div>
+              <h2 id="modal-title" className="text-2xl font-bold text-white">
+                {isCreateMode ? 'Nueva Calificación' : 'Editar Calificación'}
+              </h2>
+              <p className="text-sm text-gray-400 mt-1">
+                {isCreateMode
+                  ? 'Ingrese los detalles de la nueva calificación tributaria.'
+                  : 'Modifique los datos de la calificación existente.'}
+              </p>
+            </div>
             <button
               onClick={onClose}
-              className="p-2 hover:bg-white/10 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-offset-2 focus:ring-offset-slate-900 transition-colors text-white"
+              className="p-2 text-gray-400 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
               aria-label="Cerrar modal"
             >
               <X className="w-6 h-6" />
             </button>
           </div>
 
-          <div className="space-y-6">
-            {/* Información básica */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label htmlFor="tipoInstrumento" className="block text-sm font-medium mb-2 text-gray-200">
-                  Tipo de Instrumento *
-                </label>
-                <input
-                  ref={firstInputRef}
-                  id="tipoInstrumento"
-                  type="text"
-                  value={formData.tipoInstrumento || ''}
-                  onChange={(e) => handleInputChange('tipoInstrumento', e.target.value)}
-                  className={`w-full px-4 py-2 bg-slate-800/50 border rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-offset-2 focus:ring-offset-slate-900 text-white placeholder-gray-400 ${errors.tipoInstrumento ? 'border-red-500' : 'border-white/30'
-                    }`}
-                  aria-required="true"
-                  aria-invalid={errors.tipoInstrumento ? 'true' : 'false'}
-                  aria-describedby={errors.tipoInstrumento ? 'tipoInstrumento-error' : undefined}
-                />
-                {errors.tipoInstrumento && (
-                  <p id="tipoInstrumento-error" className="text-red-400 text-xs mt-1" role="alert">
-                    {errors.tipoInstrumento}
-                  </p>
-                )}
-              </div>
+          {/* Body - Scrollable */}
+          <div className="flex-1 overflow-y-auto p-6 space-y-8 custom-scrollbar">
+            <form id="qualification-form" onSubmit={handleSubmit} className="space-y-8">
 
-              <div>
-                <CustomDropdown
-                  label="Mercado de Origen *"
-                  value={formData.mercadoOrigen || ''}
-                  onChange={(val) => handleInputChange('mercadoOrigen', val as string)}
-                  options={[
-                    { value: "", label: "Seleccionar..." },
-                    { value: "Bolsa de Santiago", label: "Bolsa de Santiago" },
-                    { value: "BVC", label: "BVC" },
-                    { value: "COLCAP", label: "COLCAP" },
-                  ]}
-                />
-                {errors.mercadoOrigen && <p className="text-red-400 text-xs mt-1">{errors.mercadoOrigen}</p>}
-              </div>
+              {/* Sección 1: Información General */}
+              <div className="space-y-4">
+                <h3 className="text-lg font-semibold text-orange-400 flex items-center gap-2">
+                  <Icons.FileText className="w-5 h-5" />
+                  Información General
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {/* Tipo de Instrumento */}
+                  <div className="space-y-2">
+                    <label htmlFor="tipoInstrumento" className="block text-sm font-medium text-gray-300">
+                      Tipo de Instrumento <span className="text-orange-500">*</span>
+                    </label>
+                    <CustomDropdown
+                      options={[
+                        { value: 'Acciones', label: 'Acciones' },
+                        { value: 'Fondos de Inversión', label: 'Fondos de Inversión' },
+                        { value: 'Bonos', label: 'Bonos' },
+                        { value: 'ETF', label: 'ETF' }
+                      ]}
+                      value={formData.tipoInstrumento || ''}
+                      onChange={(value) => handleInputChange('tipoInstrumento', value)}
+                      placeholder="Seleccione tipo..."
+                    />
+                    {errors.tipoInstrumento && (
+                      <p className="text-sm text-red-400 flex items-center gap-1">
+                        <Icons.AlertCircle className="w-4 h-4" />
+                        {errors.tipoInstrumento}
+                      </p>
+                    )}
+                  </div>
 
-              <div>
-                <label className="block text-sm font-medium mb-2 text-gray-200">
-                  RUT Contribuyente {isCreateMode && <span className="text-red-400">*</span>}
-                </label>
-                <input
-                  type="text"
-                  value={rutContribuyenteFormatted}
-                  onChange={(e) => {
-                    const inputValue = e.target.value
-                    setRutContribuyenteFormatted(inputValue)
+                  {/* Mercado de Origen */}
+                  <div className="space-y-2">
+                    <label htmlFor="mercadoOrigen" className="block text-sm font-medium text-gray-300">
+                      Mercado de Origen <span className="text-orange-500">*</span>
+                    </label>
+                    <CustomDropdown
+                      options={[
+                        { value: 'Nacional', label: 'Nacional' },
+                        { value: 'Extranjero', label: 'Extranjero' }
+                      ]}
+                      value={formData.mercadoOrigen || ''}
+                      onChange={(value) => handleInputChange('mercadoOrigen', value)}
+                      placeholder="Seleccione mercado..."
+                    />
+                    {errors.mercadoOrigen && (
+                      <p className="text-sm text-red-400 flex items-center gap-1">
+                        <Icons.AlertCircle className="w-4 h-4" />
+                        {errors.mercadoOrigen}
+                      </p>
+                    )}
+                  </div>
 
-                    // Validar y formatear en tiempo real
-                    if (inputValue.trim() === '') {
-                      handleInputChange('rutContribuyente', undefined)
-                      // En modo creación, mostrar error si está vacío
-                      if (isCreateMode) {
-                        setErrors(prev => ({
-                          ...prev,
-                          rutContribuyente: 'El RUT del contribuyente es obligatorio'
-                        }))
-                      } else {
-                        setErrors(prev => {
-                          const newErrors = { ...prev }
-                          delete newErrors.rutContribuyente
-                          return newErrors
-                        })
-                      }
-                    } else {
-                      const rutResult = validateAndFormatRUT(inputValue)
-                      setRutContribuyenteFormatted(rutResult.formatted)
+                  {/* Período */}
+                  <div className="space-y-2">
+                    <label htmlFor="periodo" className="block text-sm font-medium text-gray-300">
+                      Período ({dateFormat}) <span className="text-orange-500">*</span>
+                    </label>
+                    <div className="relative">
+                      <input
+                        type="text"
+                        id="periodo"
+                        value={periodoFormatted}
+                        onChange={(e) => {
+                          setPeriodoFormatted(e.target.value)
+                          // Limpiar error si existe
+                          if (errors.periodo) {
+                            setErrors(prev => {
+                              const new = { ...prev }
+                              delete new.periodo
+                              return new
+                            })
+                          }
+                        }}
+                        className={`w-full bg-white/5 border ${errors.periodo ? 'border-red-500' : 'border-white/10'} rounded-xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-orange-500/50 transition-all`}
+                        placeholder={dateFormat}
+                      />
+                      <Icons.Calendar className="absolute right-4 top-3.5 w-5 h-5 text-gray-400 pointer-events-none" />
+                    </div>
+                    {errors.periodo && (
+                      <p className="text-sm text-red-400 flex items-center gap-1">
+                        <Icons.AlertCircle className="w-4 h-4" />
+                        {errors.periodo}
+                      </p>
+                    )}
+                  </div>
 
-                      if (rutResult.isValid) {
-                        handleInputChange('rutContribuyente', rutResult.clean)
-                        setErrors(prev => {
-                          const newErrors = { ...prev }
-                          delete newErrors.rutContribuyente
-                          return newErrors
-                        })
-                      } else {
-                        setErrors(prev => ({
-                          ...prev,
-                          rutContribuyente: 'RUT inválido. Formato: 11.111.111-1 o 11111111-1'
-                        }))
-                      }
-                    }
-                  }}
-                  onBlur={(e) => {
-                    const inputValue = e.target.value.trim()
-                    if (inputValue) {
-                      const rutResult = validateAndFormatRUT(inputValue)
-                      if (rutResult.isValid) {
-                        setRutContribuyenteFormatted(rutResult.formatted)
-                        handleInputChange('rutContribuyente', rutResult.clean)
-                      }
-                    } else if (isCreateMode) {
-                      // En modo creación, validar que no esté vacío al perder el foco
-                      setErrors(prev => ({
-                        ...prev,
-                        rutContribuyente: 'El RUT del contribuyente es obligatorio'
-                      }))
-                    }
-                  }}
-                  className={`w-full px-4 py-2 bg-slate-800/50 border rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500 text-white placeholder-gray-400 ${errors.rutContribuyente ? 'border-red-500' : 'border-white/30'
-                    }`}
-                  placeholder={isCreateMode ? "Ej: 12.345.678-9 o 12345678-9 (obligatorio)" : "Ej: 12.345.678-9 o 12345678-9 (opcional)"}
-                  required={isCreateMode}
-                />
-                {errors.rutContribuyente && (
-                  <p className="text-red-400 text-xs mt-1">{errors.rutContribuyente}</p>
-                )}
-                <p className="text-xs text-gray-400 mt-1">
-                  {isCreateMode
-                    ? 'Persona natural o jurídica dueña de esta calificación. Campo obligatorio.'
-                    : 'Persona natural o jurídica dueña de esta calificación. Si no se especifica, se usará el RUT del corredor.'
-                  }
-                </p>
-              </div>
+                  {/* RUT Contribuyente */}
+                  <div className="space-y-2">
+                    <label htmlFor="rutContribuyente" className="block text-sm font-medium text-gray-300">
+                      RUT Contribuyente {isCreateMode && <span className="text-orange-500">*</span>}
+                    </label>
+                    <input
+                      ref={firstInputRef}
+                      type="text"
+                      id="rutContribuyente"
+                      value={rutContribuyenteFormatted}
+                      onChange={(e) => {
+                        const inputValue = e.target.value
 
-              <div>
-                <label className="block text-sm font-medium mb-2 text-gray-200">Período *</label>
-                <input
-                  type="text"
-                  value={periodoFormatted}
-                  onChange={(e) => {
-                    const inputValue = e.target.value
-                    setPeriodoFormatted(inputValue)
+                        // Formatear automáticamente mientras se escribe
+                        // Usamos formatRUT directamente para dar feedback visual inmediato
+                        const formatted = formatRUT(inputValue)
+                        setRutContribuyenteFormatted(formatted)
 
-                    // Validar y parsear en tiempo real
-                    if (inputValue.trim() === '') {
-                      setErrors(prev => {
-                        const newErrors = { ...prev }
-                        delete newErrors.periodo
-                        return newErrors
-                      })
-                    } else {
-                      const parsedDate = parseDate(inputValue, dateFormat)
-                      if (parsedDate) {
-                        // Fecha válida, limpiar error
-                        setErrors(prev => {
-                          const newErrors = { ...prev }
-                          delete newErrors.periodo
-                          return newErrors
-                        })
-                      } else {
-                        // Fecha inválida, mostrar error
-                        setErrors(prev => ({
-                          ...prev,
-                          periodo: `Formato inválido. Use: ${dateFormat}`
-                        }))
-                      }
-                    }
-                  }}
-                  onBlur={(e) => {
-                    const inputValue = e.target.value.trim()
-                    if (inputValue) {
-                      const parsedDate = parseDate(inputValue, dateFormat)
-                      if (parsedDate) {
-                        // Formatear correctamente según la configuración
-                        setPeriodoFormatted(formatDate(parsedDate, dateFormat))
-                      }
-                    }
-                  }}
-                  placeholder={dateFormat}
-                  className={`w-full px-4 py-2 bg-slate-800/50 border rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500 text-white placeholder-gray-400 ${errors.periodo ? 'border-red-500' : 'border-white/30'
-                    }`}
-                />
-                {errors.periodo && <p className="text-red-400 text-xs mt-1">{errors.periodo}</p>}
-                <p className="text-xs text-gray-400 mt-1">
-                  Formato: {dateFormat}
-                </p>
-              </div>
+                        // Validar el RUT formateado
+                        const rutResult = validateAndFormatRUT(formatted)
 
-              <div>
-                <label className="block text-sm font-medium mb-2 text-gray-200">Tipo de Calificación</label>
-                <input
-                  type="text"
-                  value={formData.tipoCalificacion || ''}
-                  onChange={(e) => handleInputChange('tipoCalificacion', e.target.value)}
-                  className={`w-full px-4 py-2 bg-slate-800/50 border rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500 text-white placeholder-gray-400 ${errors.tipoCalificacion ? 'border-red-500' : 'border-white/30'
-                    }`}
-                />
-                {errors.tipoCalificacion && <p className="text-red-400 text-xs mt-1">{errors.tipoCalificacion}</p>}
-              </div>
+                        if (rutResult.isValid) {
+                          handleInputChange('rutContribuyente', rutResult.clean)
+                          setErrors(prev => {
+                            const newErrors = { ...prev }
+                            delete newErrors.rutContribuyente
+                            return newErrors
+                          })
+                        } else {
+                          // Si no es válido aún (o está incompleto), guardamos undefined en el modelo
+                          // pero mantenemos el valor formateado en el input visual
+                          handleInputChange('rutContribuyente', undefined)
 
-              <div>
-                <label className="block text-sm font-medium mb-2 text-gray-200">Monto (Valor) *</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  value={formData.monto?.valor || 0}
-                  onChange={(e) => handleInputChange('monto', {
-                    ...formData.monto,
-                    valor: parseFloat(e.target.value) || 0,
-                    moneda: formData.monto?.moneda || 'CLP'
-                  })}
-                  className={`w-full px-4 py-2 bg-slate-800/50 border rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500 text-white ${errors.monto ? 'border-red-500' : 'border-white/30'
-                    }`}
-                />
-                {errors.monto && <p className="text-red-400 text-xs mt-1">{errors.monto}</p>}
-              </div>
+                          // Solo mostrar error si tiene una longitud considerable y sigue siendo inválido
+                          // para no molestar mientras escribe
+                          if (inputValue.length > 8 && !rutResult.isValid) {
+                            setErrors(prev => ({
+                              ...prev,
+                              rutContribuyente: 'RUT inválido. Formato: 11.111.111-1'
+                            }))
+                          } else {
+                            // Limpiar error mientras escribe si es corto
+                            setErrors(prev => {
+                              const newErrors = { ...prev }
+                              delete newErrors.rutContribuyente
+                              return newErrors
+                            })
+                          }
+                        }
+                      }}
+                      onBlur={(e) => {
+                        const inputValue = e.target.value
+                        if (inputValue) {
+                          const rutResult = validateAndFormatRUT(inputValue)
+                          if (!rutResult.isValid) {
+                            setErrors(prev => ({
+                              ...prev,
+                              rutContribuyente: 'RUT inválido. Formato: 11.111.111-1'
+                            }))
+                          }
+                        } else if (isCreateMode) {
+                          setErrors(prev => ({
+                            ...prev,
+                            rutContribuyente: 'El RUT del contribuyente es obligatorio'
+                          }))
+                        }
+                      }}
+                      className={`w-full bg-white/5 border ${errors.rutContribuyente ? 'border-red-500' : 'border-white/10'} rounded-xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-orange-500/50 transition-all`}
+                      placeholder="12.345.678-9"
+                    />
+                    {errors.rutContribuyente && (
+                      <p className="text-sm text-red-400 flex items-center gap-1">
+                        <Icons.AlertCircle className="w-4 h-4" />
+                        {errors.rutContribuyente}
+                      </p>
+                    )}
+                  </div>
+                </div>
 
-              <div>
-                <CustomDropdown
-                  label="Moneda"
-                  value={formData.monto?.moneda || 'CLP'}
-                  onChange={(val) => handleInputChange('monto', {
-                    ...formData.monto,
-                    valor: formData.monto?.valor || 0,
-                    moneda: val as string
-                  })}
-                  options={[
-                    { value: "CLP", label: "CLP" },
-                    { value: "USD", label: "USD" },
-                    { value: "EUR", label: "EUR" },
-                  ]}
-                />
-              </div>
-
-              <div className="flex items-center">
-                <label className="flex items-center space-x-2 cursor-pointer">
+                {/* Checkbox No Inscrita */}
+                <div className="flex items-center gap-3 p-4 bg-white/5 rounded-xl border border-white/10">
                   <input
                     type="checkbox"
+                    id="esNoInscrita"
                     checked={formData.esNoInscrita || false}
                     onChange={(e) => handleInputChange('esNoInscrita', e.target.checked)}
-                    className="w-5 h-5 rounded bg-slate-800/50 border-white/30 text-orange-600 focus:ring-orange-500"
+                    className="w-5 h-5 rounded border-gray-600 text-orange-500 focus:ring-orange-500 bg-gray-700"
                   />
-                  <span className="text-sm text-gray-200">Calificación No Inscrita</span>
-                </label>
-              </div>
-            </div>
-
-            {/* Factores tributarios */}
-            <div>
-              <div className="flex justify-between items-center mb-4">
-                <label className="block text-sm font-medium text-gray-200">
-                  Distribución de Factores (DJ1948) *
-                  <span className="block text-xs text-gray-400 font-normal mt-1">
-                    Ingrese el porcentaje (0-1) para cada columna oficial del SII.
-                  </span>
-                </label>
-                <div className={`text-sm font-medium ${factorSum > 1 ? 'text-red-400' : 'text-green-400'}`}>
-                  Suma: {(factorSum * 100).toFixed(2)}% {factorSum > 1 && '⚠️'}
+                  <label htmlFor="esNoInscrita" className="text-sm font-medium text-gray-300 cursor-pointer">
+                    Marcar como Acción No Inscrita (Artículo 107 LIR no aplica)
+                  </label>
                 </div>
               </div>
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                {(Object.keys(factores) as Array<keyof TaxFactors>).map((key) => {
-                  const labels: Record<string, string> = {
-                    factor8: "C8: Rentas Trib. Cumplida",
-                    factor9: "C9: Rentas RAP (Ex 14TER)",
-                    factor10: "C10: Otras rentas",
-                    factor11: "C11: Exc. Dist. Desprop.",
-                    factor12: "C12: Utilidades ISFUT",
-                    factor13: "C13: Rentas < 1983",
-                    factor14: "C14: Exentas IGC (L.18401)",
-                    factor15: "C15: Otras Exentas IGC/IA",
-                    factor16: "C16: Ingresos No Renta"
-                  }
 
-                  const descriptions: Record<string, string> = {
-                    factor8: "Rentas con Tributación Cumplida (RAP, REX)",
-                    factor9: "Rentas del registro RAP (Ex 14 TER)",
-                    factor10: "Otras rentas percibidas sin prioridad",
-                    factor11: "Exceso Distribuciones Desproporcionadas",
-                    factor12: "Utilidades afectadas con ISFUT",
-                    factor13: "Rentas generadas hasta 31.12.1983",
-                    factor14: "Rentas exentas IGC (Ley 18.401)",
-                    factor15: "Otras Rentas Exentas de IGC/IA",
-                    factor16: "Ingresos No Constitutivos de Renta"
-                  }
+              {/* Sección 2: Montos y Valores */}
+              <div className="space-y-4">
+                <h3 className="text-lg font-semibold text-orange-400 flex items-center gap-2">
+                  <Icons.DollarSign className="w-5 h-5" />
+                  Monto y Moneda
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="space-y-2">
+                    <label htmlFor="monto" className="block text-sm font-medium text-gray-300">
+                      Monto <span className="text-orange-500">*</span>
+                    </label>
+                    <input
+                      type="number"
+                      id="monto"
+                      value={formData.monto?.valor || 0}
+                      onChange={(e) => handleInputChange('monto', { ...formData.monto, valor: parseFloat(e.target.value) || 0 })}
+                      className={`w-full bg-white/5 border ${errors.monto ? 'border-red-500' : 'border-white/10'} rounded-xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-orange-500/50 transition-all`}
+                      min="0"
+                      step="0.01"
+                    />
+                    {errors.monto && (
+                      <p className="text-sm text-red-400 flex items-center gap-1">
+                        <Icons.AlertCircle className="w-4 h-4" />
+                        {errors.monto}
+                      </p>
+                    )}
+                  </div>
+                  <div className="space-y-2">
+                    <label htmlFor="moneda" className="block text-sm font-medium text-gray-300">
+                      Moneda
+                    </label>
+                    <CustomDropdown
+                      options={[
+                        { value: 'CLP', label: 'Peso Chileno (CLP)' },
+                        { value: 'USD', label: 'Dólar (USD)' },
+                        { value: 'UF', label: 'Unidad de Fomento (UF)' }
+                      ]}
+                      value={formData.monto?.moneda || 'CLP'}
+                      onChange={(value) => handleInputChange('monto', { ...formData.monto, moneda: value })}
+                    />
+                  </div>
+                </div>
+              </div>
 
-                  return (
-                    <div key={key} className="group relative">
-                      <label
-                        className="block text-xs text-gray-300 mb-1 truncate cursor-help"
-                        title={descriptions[key]}
-                      >
-                        {labels[key]}
+              {/* Sección 3: Factores Tributarios */}
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-lg font-semibold text-orange-400 flex items-center gap-2">
+                    <Icons.Percent className="w-5 h-5" />
+                    Factores Tributarios (F8-F19)
+                  </h3>
+                  <div className={`px-3 py-1 rounded-full text-sm font-medium ${Math.abs(factorSum - 1) < 0.001 ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'
+                    }`}>
+                    Suma: {(factorSum * 100).toFixed(1)}%
+                  </div>
+                </div>
+
+                {errors.factores && (
+                  <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-xl flex items-start gap-3">
+                    <Icons.AlertTriangle className="w-5 h-5 text-red-400 shrink-0 mt-0.5" />
+                    <p className="text-sm text-red-400">{errors.factores}</p>
+                  </div>
+                )}
+
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+                  {Object.keys(factores).map((key) => (
+                    <div key={key} className="space-y-1">
+                      <label htmlFor={key} className="block text-xs font-medium text-gray-400 uppercase">
+                        {key.replace('factor', 'Factor ')}
                       </label>
                       <input
                         type="number"
-                        step="0.0001"
+                        id={key}
+                        value={factores[key as keyof TaxFactors]}
+                        onChange={(e) => handleFactorChange(key as keyof TaxFactors, e.target.value)}
+                        className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/50 transition-all text-right"
                         min="0"
                         max="1"
-                        value={factores[key]}
-                        onChange={(e) => handleFactorChange(key, e.target.value)}
-                        className="w-full px-3 py-2 bg-slate-800/50 border border-white/30 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 text-sm text-white"
+                        step="0.01"
                       />
-                      {/* Tooltip personalizado on hover */}
-                      <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-black/90 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-10">
-                        {descriptions[key]}
-                      </div>
                     </div>
-                  )
-                })}
-              </div>
-              {errors.factores && <p className="text-red-400 text-xs mt-2">{errors.factores}</p>}
-            </div>
-
-            {/* Configuración de Créditos Tributarios */}
-            <div className="space-y-4 p-4 border border-orange-500/30 rounded-xl bg-orange-500/5">
-              <div>
-                <h3 className="text-sm font-medium text-gray-200 mb-3">
-                  Configuración de Créditos Tributarios
-                  <span className="block text-xs text-gray-400 font-normal mt-1">
-                    Parámetros para el cálculo automático de créditos (DJ1948 columnas C17-C32)
-                  </span>
-                </h3>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {/* Régimen Tributario */}
-                <div>
-                  <label className="block text-sm font-medium mb-2 text-gray-200">Régimen Tributario</label>
-                  <select
-                    value={creditosConfig.regimenTributario}
-                    onChange={(e) => setCreditosConfig({ ...creditosConfig, regimenTributario: e.target.value as '14A' | '14D3' })}
-                    className="w-full px-4 py-2 bg-slate-800/50 border border-white/30 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500 text-white"
-                  >
-                    <option value="14A">Art. 14 A (Régimen General)</option>
-                    <option value="14D3">Art. 14 D N°3 (Pro Pyme)</option>
-                  </select>
-                  <p className="text-xs text-gray-400 mt-1">Régimen tributario aplicable a los dividendos</p>
-                </div>
-
-                {/* Tasa IDPC */}
-                <div>
-                  <label className="block text-sm font-medium mb-2 text-gray-200">Tasa IDPC (%)</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    max="100"
-                    value={creditosConfig.tasaIDPC * 100}
-                    onChange={(e) => setCreditosConfig({ ...creditosConfig, tasaIDPC: parseFloat(e.target.value) / 100 || 0 })}
-                    className="w-full px-4 py-2 bg-slate-800/50 border border-white/30 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500 text-white"
-                  />
-                  <p className="text-xs text-gray-400 mt-1">Tasa del Impuesto de Primera Categoría (ej: 27% para 2025)</p>
-                </div>
-
-                {/* Año Tributario */}
-                <div>
-                  <label className="block text-sm font-medium mb-2 text-gray-200">Año Tributario</label>
-                  <input
-                    type="number"
-                    min="2017"
-                    max={new Date().getFullYear() + 1}
-                    value={creditosConfig.anioTributario}
-                    onChange={(e) => setCreditosConfig({ ...creditosConfig, anioTributario: parseInt(e.target.value) || new Date().getFullYear() })}
-                    className="w-full px-4 py-2 bg-slate-800/50 border border-white/30 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500 text-white"
-                  />
-                  <p className="text-xs text-gray-400 mt-1">Año al que corresponde la declaración</p>
-                </div>
-
-                {/* Checkboxes */}
-                <div className="space-y-3">
-                  <label className="flex items-start space-x-2 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={creditosConfig.creditoConDevolucion}
-                      onChange={(e) => setCreditosConfig({ ...creditosConfig, creditoConDevolucion: e.target.checked })}
-                      className="mt-1 w-5 h-5 rounded bg-slate-800/50 border-white/30 text-orange-600 focus:ring-orange-500"
-                    />
-                    <span className="text-sm text-gray-200">
-                      <strong>Crédito con Derecho a Devolución</strong>
-                      <span className="block text-xs text-gray-400 mt-0.5">Permite solicitar devolución del exceso de crédito</span>
-                    </span>
-                  </label>
-
-                  <label className="flex items-start space-x-2 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={creditosConfig.creditoSujetoRestitucion}
-                      onChange={(e) => setCreditosConfig({ ...creditosConfig, creditoSujetoRestitucion: e.target.checked })}
-                      className="mt-1 w-5 h-5 rounded bg-slate-800/50 border-white/30 text-orange-600 focus:ring-orange-500"
-                    />
-                    <span className="text-sm text-gray-200">
-                      <strong>Crédito Sujeto a Restitución</strong>
-                      <span className="block text-xs text-gray-400 mt-0.5">Sujeto a restitución según Art. 56 N°3 y 63 LIR</span>
-                    </span>
-                  </label>
+                  ))}
                 </div>
               </div>
-            </div>
 
-            {errors.submit && (
-              <div className="p-4 bg-red-500/20 border border-red-500/50 rounded-xl">
-                <p className="text-red-400 text-sm">{errors.submit}</p>
-              </div>
-            )}
+              {/* Error General de Envío */}
+              {errors.submit && (
+                <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-xl flex items-center gap-3">
+                  <Icons.AlertTriangle className="w-5 h-5 text-red-400" />
+                  <p className="text-sm text-red-400">{errors.submit}</p>
+                </div>
+              )}
 
-            {/* Botones */}
-            <div className="flex justify-end gap-3 pt-4 border-t border-white/20">
-              <button
-                onClick={onClose}
-                className="px-6 py-2 bg-slate-800/50 border border-white/30 rounded-xl hover:bg-slate-700/50 transition-colors text-white"
-                disabled={isSaving}
-              >
-                Cancelar
-              </button>
-              <button
-                onClick={handleSave}
-                disabled={isSaving || factorSum > 1}
-                className="px-6 py-2 bg-gradient-to-r from-orange-600 to-amber-600 rounded-xl hover:from-orange-700 hover:to-amber-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed text-white font-medium"
-              >
-                {isSaving
-                  ? (isCreateMode ? 'Creando...' : 'Guardando...')
-                  : (isCreateMode ? 'Crear Calificación' : 'Guardar Cambios')
-                }
-              </button>
-            </div>
+            </form>
+          </div>
+
+          {/* Footer */}
+          <div className="p-6 border-t border-white/10 bg-white/5 flex justify-end gap-3">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-6 py-2.5 rounded-xl border border-white/10 text-gray-300 hover:bg-white/5 font-medium transition-all"
+              disabled={isSaving}
+            >
+              Cancelar
+            </button>
+            <button
+              type="submit"
+              form="qualification-form"
+              disabled={isSaving}
+              className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-orange-600 to-amber-600 text-white font-medium hover:from-orange-700 hover:to-amber-700 shadow-lg shadow-orange-500/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+            >
+              {isSaving ? (
+                <>
+                  <Icons.Refresh className="w-4 h-4 animate-spin" />
+                  Guardando...
+                </>
+              ) : (
+                <>
+                  <Icons.Save className="w-4 h-4" />
+                  {isCreateMode ? 'Crear Calificación' : 'Guardar Cambios'}
+                </>
+              )}
+            </button>
           </div>
         </div>
-      </div >
-    </Portal >
+      </div>
+    </Portal>
   )
 }

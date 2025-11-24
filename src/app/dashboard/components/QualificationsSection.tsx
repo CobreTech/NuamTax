@@ -300,8 +300,11 @@ function QualificationsSection({
   }, [])
 
   const handleSaveEdit = () => {
-    window.dispatchEvent(new Event('reloadQualifications'))
-    window.dispatchEvent(new Event('reloadBrokerStats'))
+    // Pequeño retraso para asegurar que Firestore haya procesado los triggers/updates
+    setTimeout(() => {
+      window.dispatchEvent(new Event('reloadQualifications'))
+      window.dispatchEvent(new Event('reloadBrokerStats'))
+    }, 500)
     setEditingQual(null)
     setIsCreating(false)
   }
@@ -346,8 +349,10 @@ function QualificationsSection({
         }
       }
 
-      window.dispatchEvent(new Event('reloadQualifications'))
-      window.dispatchEvent(new Event('reloadBrokerStats'))
+      setTimeout(() => {
+        window.dispatchEvent(new Event('reloadQualifications'))
+        window.dispatchEvent(new Event('reloadBrokerStats'))
+      }, 500)
       setDeletingQual(null)
       setIsBulkDeleting(false)
       setSelectedIds(new Set())

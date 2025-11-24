@@ -5,6 +5,7 @@ import { auth, db } from "../firebase/config";
 import { createUserWithEmailAndPassword } from "firebase/auth";
 import { doc, setDoc, serverTimestamp } from "firebase/firestore";
 import CustomDropdown from './CustomDropdown';
+import { formatRUT, validateRUT } from "../utils/rutUtils";
 
 type Props = {
   open: boolean;
@@ -21,25 +22,6 @@ export default function RegisterModal({ open, onClose }: Props) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
-
-  const normalizeRut = (value: string) => value.replace(/\./g, "").replace(/\s+/g, "").toUpperCase();
-
-  const validarRut = (value: string) => {
-    const clean = normalizeRut(value);
-    const match = clean.match(/^([0-9]+)-([0-9K])$/i);
-    if (!match) return false;
-    const cuerpo = match[1];
-    const dv = match[2].toUpperCase();
-    let suma = 0;
-    let multiplo = 2;
-    for (let i = cuerpo.length - 1; i >= 0; i--) {
-      suma += parseInt(cuerpo.charAt(i), 10) * multiplo;
-      multiplo = multiplo === 7 ? 2 : multiplo + 1;
-    }
-    const dvEsperado = 11 - (suma % 11);
-    const dvCalc = dvEsperado === 11 ? "0" : dvEsperado === 10 ? "K" : String(dvEsperado);
-    return dv === dvCalc;
-  };
 
   const resetState = () => {
     setNombre("");
@@ -58,19 +40,22 @@ export default function RegisterModal({ open, onClose }: Props) {
     setError("");
     setSuccess(false);
     try {
-      const rutNorm = normalizeRut(rut);
-      if (!validarRut(rutNorm)) {
+      // Use shared validation
+      if (!validateRUT(rut)) {
         setLoading(false);
-        setError("RUT inválido. Use 12345678-9 con DV correcto.");
+        setError("RUT inválido. Use 12.345.678-9 con DV correcto.");
         return;
       }
+
+      const rutClean = rut.replace(/\./g, "").replace(/-/g, "").toUpperCase();
+
       const cred = await createUserWithEmailAndPassword(auth, email, password);
       const uid = cred.user.uid;
       const profile = {
         uid,
         Nombre: nombre,
         Apellido: apellido,
-        Rut: rutNorm,
+        Rut: rutClean, // Storing clean RUT
         email,
         rol,
         FechaCreacion: serverTimestamp(),
@@ -125,7 +110,16 @@ export default function RegisterModal({ open, onClose }: Props) {
               </div>
               <div>
                 <label className="block text-sm font-medium mb-2">RUT</label>
-                <input value={rut} onChange={(e) => setRut(e.target.value)} className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500/50 transition-all" placeholder="12345678-9" required />
+                <input
+                  value={rut}
+                  onChange={(e) => {
+                    const formatted = formatRUT(e.target.value);
+                    setRut(formatted);
+                  }}
+                  className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500/50 transition-all"
+                  placeholder="12.345.678-9"
+                  required
+                />
               </div>
               <div>
                 <label className="block text-sm font-medium mb-2">Correo electrónico</label>
