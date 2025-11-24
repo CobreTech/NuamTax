@@ -9,7 +9,7 @@ import CustomDropdown from '@/app/components/CustomDropdown';
 interface AuditLog {
   id: string;
   timestamp: Date;
-  userId: string;
+  usuarioId: string; // Changed from userId
   userEmail: string;
   userName: string;
   action: string;
@@ -57,11 +57,15 @@ export default function AuditLogs() {
       );
 
       const logsSnap = await getDocs(logsQuery);
-      const logsData = logsSnap.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data(),
-        timestamp: doc.data().timestamp?.toDate() || new Date(),
-      } as AuditLog));
+      const logsData = logsSnap.docs.map(doc => {
+        const data = doc.data();
+        return {
+          id: doc.id,
+          ...data,
+          usuarioId: data.usuarioId || data.userId, // Backward compatibility
+          timestamp: data.timestamp?.toDate() || new Date(),
+        } as AuditLog;
+      });
 
       setLogs(logsData);
     } catch (error) {
@@ -79,7 +83,7 @@ export default function AuditLogs() {
       {
         id: '1',
         timestamp: new Date(now.getTime() - 3600000),
-        userId: 'user-123',
+        usuarioId: 'user-123',
         userEmail: 'corredor@nuam.com',
         userName: 'Juan Pérez',
         action: 'LOGIN',
@@ -89,7 +93,7 @@ export default function AuditLogs() {
       {
         id: '2',
         timestamp: new Date(now.getTime() - 7200000),
-        userId: 'user-123',
+        usuarioId: 'user-123',
         userEmail: 'corredor@nuam.com',
         userName: 'Juan Pérez',
         action: 'UPLOAD',
@@ -100,7 +104,7 @@ export default function AuditLogs() {
       {
         id: '3',
         timestamp: new Date(now.getTime() - 10800000),
-        userId: 'admin-456',
+        usuarioId: 'admin-456',
         userEmail: 'admin@nuam.com',
         userName: 'María González',
         action: 'CREATE',

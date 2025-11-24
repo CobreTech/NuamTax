@@ -18,6 +18,7 @@ import {
   FiMenu, FiHome, FiLogOut, FiLogIn,
   FiEye, FiEyeOff, FiCopy, FiExternalLink,
   FiShield, FiCheckCircle, FiXCircle, FiAlertTriangle,
+  FiPercent, FiDollarSign,
 } from 'react-icons/fi';
 
 import {
@@ -125,6 +126,10 @@ export const Icons = {
   // Errores y avisos
   ErrorIcon: MdError,
   WarningIcon: MdWarning,
+
+  // Financiero
+  Percent: FiPercent,
+  DollarSign: FiDollarSign,
 };
 
 export default Icons;

@@ -15,18 +15,18 @@ import { TaxFactors, TaxQualification, ValidationError } from '../dashboard/comp
  * iguales a 1.00 (100%) como válidas.
  */
 export function validateFactorsSum(factors: TaxFactors): { isValid: boolean; sum: number; error?: string } {
-  const sum = 
-    (factors.factor8 || 0) + 
-    (factors.factor9 || 0) + 
-    (factors.factor10 || 0) + 
-    (factors.factor11 || 0) + 
-    (factors.factor12 || 0) + 
-    (factors.factor13 || 0) + 
-    (factors.factor14 || 0) + 
-    (factors.factor15 || 0) + 
-    (factors.factor16 || 0) + 
-    (factors.factor17 || 0) + 
-    (factors.factor18 || 0) + 
+  const sum =
+    (factors.factor8 || 0) +
+    (factors.factor9 || 0) +
+    (factors.factor10 || 0) +
+    (factors.factor11 || 0) +
+    (factors.factor12 || 0) +
+    (factors.factor13 || 0) +
+    (factors.factor14 || 0) +
+    (factors.factor15 || 0) +
+    (factors.factor16 || 0) +
+    (factors.factor17 || 0) +
+    (factors.factor18 || 0) +
     (factors.factor19 || 0);
 
   const isValid = sum <= 1;
@@ -116,12 +116,12 @@ export function validateTaxQualification(
     });
   } else {
     // Validar cada factor individualmente
-    const factorKeys = ['factor8', 'factor9', 'factor10', 'factor11', 'factor12', 'factor13', 
-                        'factor14', 'factor15', 'factor16', 'factor17', 'factor18', 'factor19'];
-    
+    const factorKeys = ['factor8', 'factor9', 'factor10', 'factor11', 'factor12', 'factor13',
+      'factor14', 'factor15', 'factor16', 'factor17', 'factor18', 'factor19'];
+
     for (const key of factorKeys) {
       const value = factores[key as keyof TaxFactors];
-      
+
       if (value === undefined || value === null) {
         errors.push({
           row: rowNumber,
@@ -175,7 +175,7 @@ export function validatePeriodFormat(period: string): boolean {
   const quarterPattern = /^\d{4}-Q[1-4]$/;
   const monthPattern = /^\d{4}-(0[1-9]|1[0-2])$/;
   const yearPattern = /^\d{4}$/;
-  
+
   return quarterPattern.test(period) || monthPattern.test(period) || yearPattern.test(period);
 }
 

@@ -41,6 +41,8 @@ import { logLogout } from '../services/auditService'
 import { useFirestoreCache } from '../hooks/useFirestoreCache'
 import { useDashboard } from '../context/DashboardContext'
 
+import { useRealTimeBrokerStats } from '../hooks/useRealTimeBrokerStats'
+
 // Componente principal del Dashboard.
 export default function Dashboard() {
   const router = useRouter() // Hook para manejar el enrutamiento.
@@ -57,14 +59,8 @@ export default function Dashboard() {
   const [pageSize, setPageSize] = useState(10) // Cantidad de elementos por página en las tablas.
   const [loadingConfig, setLoadingConfig] = useState(true) // Estado de carga de configuración.
 
-  // Estados para estadísticas reales
-  const [brokerStats, setBrokerStats] = useState<BrokerStats>({
-    totalQualifications: 0,
-    validatedFactors: 0,
-    reportsGenerated: 0,
-    successRate: 0
-  })
-  const [loadingStats, setLoadingStats] = useState(true)
+  // Hook de estadísticas en tiempo real (reemplaza el cache)
+  const { stats: brokerStats, loading: loadingStats } = useRealTimeBrokerStats(userProfile?.uid)
 
   // Cargar configuración del usuario con caché
   const { data: cachedConfig, loading: configCacheLoading } = useFirestoreCache<UserConfig | null>(
@@ -84,41 +80,6 @@ export default function Dashboard() {
     }
     setLoadingConfig(configCacheLoading)
   }, [cachedConfig, configCacheLoading])
-
-  // Cargar estadísticas con caché
-  const { data: cachedStats, loading: statsCacheLoading, invalidateCache: invalidateStatsCache } = useFirestoreCache<BrokerStats>(
-    `broker-stats-${userProfile?.uid || ''}`,
-    () => {
-      if (!userProfile?.uid) {
-        return Promise.resolve({
-          totalQualifications: 0,
-          validatedFactors: 0,
-          reportsGenerated: 0,
-          successRate: 0
-        })
-      }
-      return getBrokerStats(userProfile.uid)
-    },
-    2 * 60 * 1000 // 2 minutos de caché para estadísticas
-  )
-
-  useEffect(() => {
-    if (cachedStats) {
-      setBrokerStats(cachedStats)
-    }
-    setLoadingStats(statsCacheLoading)
-  }, [cachedStats, statsCacheLoading])
-
-  // Listener para recargar estadísticas después de carga masiva
-  useEffect(() => {
-    const handleReloadStats = () => {
-      invalidateStatsCache()
-    }
-    window.addEventListener('reloadBrokerStats', handleReloadStats)
-    return () => {
-      window.removeEventListener('reloadBrokerStats', handleReloadStats)
-    }
-  }, [invalidateStatsCache])
 
   // Sync global stats to context
   useEffect(() => {

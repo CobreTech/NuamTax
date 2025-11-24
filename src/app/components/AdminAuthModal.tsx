@@ -5,18 +5,12 @@ import { auth, db } from '../firebase/config'
 import Icons from '../utils/icons';
 import { signInWithEmailAndPassword } from "firebase/auth";
 import { doc, getDoc } from "firebase/firestore";
+import { getFriendlyErrorMessage } from "../utils/errorUtils";
+import Toast from "./Toast";
 
 /**
  * Modal de Autenticación de Administrador
- * 
- * Este modal se muestra antes de permitir el registro de nuevos usuarios.
- * Solo los usuarios con rol "Administrador" pueden crear nuevas cuentas.
- * 
- * Flujo:
- * 1. Usuario hace click en "Registrarse"
- * 2. Se abre este modal pidiendo credenciales de admin
- * 3. Si las credenciales son válidas Y el rol es "Administrador" → onSuccess()
- * 4. Si no es admin o credenciales inválidas → Mensaje de error
+ * ...
  */
 
 type Props = {
@@ -29,24 +23,22 @@ export default function AdminAuthModal({ open, onClose, onSuccess }: Props) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
+  const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
   const [showPassword, setShowPassword] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    setError("");
+    setToast(null);
 
     let secondaryApp: any = null;
 
     try {
       // 1. Inicializar una app secundaria para no afectar la sesión actual
-      // Importamos dinámicamente para asegurar acceso a las funciones necesarias
-      const { initializeApp, getApps, getApp, deleteApp } = await import("firebase/app");
+      const { initializeApp, getApps, getApp } = await import("firebase/app");
       const { getAuth, signInWithEmailAndPassword, signOut } = await import("firebase/auth");
       const { getFirestore, doc, getDoc } = await import("firebase/firestore");
 
-      // Configuración de Firebase (la misma que en config.ts)
       const firebaseConfig = {
         apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
         authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
@@ -56,7 +48,6 @@ export default function AdminAuthModal({ open, onClose, onSuccess }: Props) {
         appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
       };
 
-      // Crear o recuperar app secundaria
       const secondaryAppName = "secondaryAuthApp";
       const apps = getApps();
       secondaryApp = apps.find(app => app.name === secondaryAppName) || initializeApp(firebaseConfig, secondaryAppName);
@@ -66,14 +57,13 @@ export default function AdminAuthModal({ open, onClose, onSuccess }: Props) {
       const userCredential = await signInWithEmailAndPassword(secondaryAuth, email, password);
       const userId = userCredential.user.uid;
 
-      // 3. Verificar rol en Firestore (usando la instancia de la app secundaria si es necesario, 
-      // o la principal si las reglas lo permiten. Usaremos la secundaria para ser consistentes)
+      // 3. Verificar rol en Firestore
       const secondaryDb = getFirestore(secondaryApp);
       const userDocRef = doc(secondaryDb, "users", userId);
       const userDocSnap = await getDoc(userDocRef);
 
       if (!userDocSnap.exists()) {
-        setError("Usuario no encontrado en el sistema.");
+        setToast({ message: "Usuario no encontrado en el sistema.", type: "error" });
         await signOut(secondaryAuth);
         setLoading(false);
         return;
@@ -84,45 +74,35 @@ export default function AdminAuthModal({ open, onClose, onSuccess }: Props) {
 
       // 4. Verificar que sea Administrador
       if (userRole !== "Administrador") {
-        setError("Acceso denegado. Solo los administradores pueden registrar nuevos usuarios.");
+        setToast({ message: "Acceso denegado. Solo los administradores pueden registrar nuevos usuarios.", type: "error" });
         await signOut(secondaryAuth);
         setLoading(false);
         return;
       }
 
-      // 5. Autenticación exitosa - Cerrar sesión en secundaria inmediatamente
+      // 5. Autenticación exitosa
       await signOut(secondaryAuth);
 
-      console.log("✅ Administrador verificado correctamente (sin inicio de sesión global)");
-      onSuccess();
-      resetForm();
-      onClose();
+      console.log("✅ Administrador verificado correctamente");
+      setToast({ message: "Verificación exitosa", type: "success" });
+      setTimeout(() => {
+        onSuccess();
+        resetForm();
+        onClose();
+      }, 1000);
 
     } catch (err: any) {
-      console.error("Error en verificación de admin:", err);
-      const code = err?.code || "unknown";
-
-      let friendlyMessage = "Error al verificar. Revisa tus credenciales.";
-      if (code === "auth/invalid-credential" || code === "auth/wrong-password") {
-        friendlyMessage = "Credenciales incorrectas.";
-      } else if (code === "auth/user-not-found") {
-        friendlyMessage = "Usuario no encontrado.";
-      } else if (code === "auth/too-many-requests") {
-        friendlyMessage = "Demasiados intentos. Intenta más tarde.";
-      }
-
-      setError(friendlyMessage);
+      const friendlyMessage = getFriendlyErrorMessage(err);
+      setToast({ message: friendlyMessage, type: "error" });
     } finally {
       setLoading(false);
-      // Opcional: Limpiar la app secundaria si se desea
-      // if (secondaryApp) deleteApp(secondaryApp).catch(console.error);
     }
   };
 
   const resetForm = () => {
     setEmail("");
     setPassword("");
-    setError("");
+    setToast(null);
   };
 
   const handleClose = () => {
@@ -208,13 +188,6 @@ export default function AdminAuthModal({ open, onClose, onSuccess }: Props) {
             </div>
           </div>
 
-          {/* Mensaje de error */}
-          {error && (
-            <div className="bg-red-500/20 border border-red-500/50 text-red-400 text-sm rounded-xl p-3 text-center">
-              ⚠️ {error}
-            </div>
-          )}
-
           {/* Botones */}
           <div className="flex gap-3">
             <button
@@ -250,6 +223,8 @@ export default function AdminAuthModal({ open, onClose, onSuccess }: Props) {
         </form>
       </div>
 
+      {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
+
       <style jsx>{`
         @keyframes fade-in {
           from {
@@ -268,3 +243,4 @@ export default function AdminAuthModal({ open, onClose, onSuccess }: Props) {
     </div>
   );
 }
+

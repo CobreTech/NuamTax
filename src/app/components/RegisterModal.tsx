@@ -1,11 +1,15 @@
 "use client";
 
+"use client";
+
 import { useState } from "react";
 import { auth, db } from "../firebase/config";
 import { createUserWithEmailAndPassword } from "firebase/auth";
 import { doc, setDoc, serverTimestamp } from "firebase/firestore";
 import CustomDropdown from './CustomDropdown';
 import { formatRUT, validateRUT } from "../utils/rutUtils";
+import { getFriendlyErrorMessage } from "../utils/errorUtils";
+import Toast from "./Toast";
 
 type Props = {
   open: boolean;
@@ -20,8 +24,7 @@ export default function RegisterModal({ open, onClose }: Props) {
   const [password, setPassword] = useState("");
   const [rol, setRol] = useState("Corredor");
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
-  const [success, setSuccess] = useState(false);
+  const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
 
   const resetState = () => {
     setNombre("");
@@ -30,20 +33,18 @@ export default function RegisterModal({ open, onClose }: Props) {
     setEmail("");
     setPassword("");
     setRol("Corredor");
-    setError("");
-    setSuccess(false);
+    setToast(null);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    setError("");
-    setSuccess(false);
+    setToast(null);
     try {
       // Use shared validation
       if (!validateRUT(rut)) {
         setLoading(false);
-        setError("RUT inválido. Use 12.345.678-9 con DV correcto.");
+        setToast({ message: "RUT inválido. Use 12.345.678-9 con DV correcto.", type: "error" });
         return;
       }
 
@@ -61,20 +62,14 @@ export default function RegisterModal({ open, onClose }: Props) {
         FechaCreacion: serverTimestamp(),
       };
       await setDoc(doc(db, "users", uid), profile);
-      setSuccess(true);
+      setToast({ message: "Cuenta creada correctamente", type: "success" });
       setTimeout(() => {
         onClose();
         resetState();
       }, 1200);
     } catch (err: any) {
-      const code = err?.code || "unknown";
-      const message = err?.message || "";
-      console.error("Registro error:", code, message);
-      let friendly = "No se pudo registrar. Verifica los datos o intenta más tarde.";
-      if (code === "auth/email-already-in-use") friendly = "El correo ya está en uso.";
-      if (code === "auth/invalid-email") friendly = "Correo inválido.";
-      if (code === "auth/weak-password") friendly = "La contraseña es muy débil (min 6).";
-      setError(friendly);
+      const friendly = getFriendlyErrorMessage(err);
+      setToast({ message: friendly, type: "error" });
     } finally {
       setLoading(false);
     }
@@ -91,70 +86,62 @@ export default function RegisterModal({ open, onClose }: Props) {
           </button>
           <h2 className="text-2xl font-bold text-center">Crear cuenta</h2>
 
-          {success ? (
-            <div className="text-center text-green-400">
-              <p>Cuenta creada correctamente</p>
-              <p className="text-sm text-gray-300 mt-2">Ya puedes iniciar sesión.</p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium mb-2">Nombre</label>
+              <input value={nombre} onChange={(e) => setNombre(e.target.value)} className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500/50 transition-all" placeholder="Nombre" required />
             </div>
-          ) : (
-            <>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium mb-2">Nombre</label>
-                  <input value={nombre} onChange={(e) => setNombre(e.target.value)} className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500/50 transition-all" placeholder="Nombre" required />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium mb-2">Apellido</label>
-                  <input value={apellido} onChange={(e) => setApellido(e.target.value)} className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500/50 transition-all" placeholder="Apellido" required />
-                </div>
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-2">RUT</label>
-                <input
-                  value={rut}
-                  onChange={(e) => {
-                    const formatted = formatRUT(e.target.value);
-                    setRut(formatted);
-                  }}
-                  className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500/50 transition-all"
-                  placeholder="12.345.678-9"
-                  required
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-2">Correo electrónico</label>
-                <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500/50 transition-all" placeholder="tu-correo@ejemplo.com" required />
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-2">Contraseña</label>
-                <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500/50 transition-all" placeholder="••••••••" minLength={6} required />
-              </div>
-              <div>
-                <CustomDropdown
-                  label="Rol"
-                  value={rol}
-                  onChange={(val) => setRol(val as string)}
-                  options={[
-                    { value: "Corredor", label: "Corredor" },
-                    { value: "Administrador", label: "Administrador" },
-                  ]}
-                />
-              </div>
-              {error && <div className="bg-red-500/20 border border-red-500/50 text-red-400 text-sm rounded-xl p-3 text-center">{error}</div>}
-              <button type="submit" disabled={loading} className="w-full py-3 bg-gradient-to-r from-orange-600 to-amber-600 rounded-xl hover:from-orange-700 hover:to-amber-700 transition-all disabled:opacity-50 font-semibold">
-                {loading ? (
-                  <span className="flex items-center justify-center">
-                    <svg className="animate-spin h-5 w-5 mr-3" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" /></svg>
-                    Creando cuenta...
-                  </span>
-                ) : (
-                  "Crear cuenta"
-                )}
-              </button>
-            </>
-          )}
+            <div>
+              <label className="block text-sm font-medium mb-2">Apellido</label>
+              <input value={apellido} onChange={(e) => setApellido(e.target.value)} className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500/50 transition-all" placeholder="Apellido" required />
+            </div>
+          </div>
+          <div>
+            <label className="block text-sm font-medium mb-2">RUT</label>
+            <input
+              value={rut}
+              onChange={(e) => {
+                const formatted = formatRUT(e.target.value);
+                setRut(formatted);
+              }}
+              className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500/50 transition-all"
+              placeholder="12.345.678-9"
+              required
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium mb-2">Correo electrónico</label>
+            <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500/50 transition-all" placeholder="tu-correo@ejemplo.com" required />
+          </div>
+          <div>
+            <label className="block text-sm font-medium mb-2">Contraseña</label>
+            <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500/50 transition-all" placeholder="••••••••" minLength={6} required />
+          </div>
+          <div>
+            <CustomDropdown
+              label="Rol"
+              value={rol}
+              onChange={(val) => setRol(val as string)}
+              options={[
+                { value: "Corredor", label: "Corredor" },
+                { value: "Administrador", label: "Administrador" },
+              ]}
+            />
+          </div>
+
+          <button type="submit" disabled={loading} className="w-full py-3 bg-gradient-to-r from-orange-600 to-amber-600 rounded-xl hover:from-orange-700 hover:to-amber-700 transition-all disabled:opacity-50 font-semibold">
+            {loading ? (
+              <span className="flex items-center justify-center">
+                <svg className="animate-spin h-5 w-5 mr-3" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" /></svg>
+                Creando cuenta...
+              </span>
+            ) : (
+              "Crear cuenta"
+            )}
+          </button>
         </form>
       </div>
+      {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
     </div>
   );
 }

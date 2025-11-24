@@ -1,9 +1,16 @@
-instrumento,mercado,periodo,tipo_calificacion,f8,f9,f10,f11,f12,f13,f14,f15,f16,monto,es_oficial,regimen_tributario,tasa_idpc,anio_tributario,credito_devolucion,credito_restitucion
-Acción ABC,BVC,2024-Q1,Dividendos,0.08,0.08,0.08,0.08,0.08,0.08,0.08,0.08,0.08,15000,true,14A,0.27,2025,false,false
-Bono Corporativo XYZ,BVC,2024-Q1,Intereses,0.10,0.09,0.08,0.07,0.06,0.05,0.05,0.10,0.10,45000,true,14A,0.27,2025,false,false
-ETF Regional 123,COLCAP,2024-Q2,Capital,0.05,0.05,0.10,0.10,0.10,0.10,0.10,0.10,0.10,8500,false,14D3,0.25,2025,true,false
-Fondo Mutuo DEF,BVC,2024-Q2,Dividendos,0.12,0.10,0.08,0.06,0.05,0.05,0.08,0.08,0.08,23400,true,14A,0.27,2025,false,false
-Acción Preferente GHI,COLCAP,2024-Q3,Dividendos,0.09,0.09,0.09,0.09,0.08,0.08,0.08,0.08,0.08,67800,true,14A,0.27,2025,false,false
-Bono Gobierno JKL,BVC,2024-Q3,Intereses,0.15,0.10,0.10,0.05,0.05,0.05,0.10,0.10,0.10,120000,true,14A,0.27,2025,false,false
-ETF Internacional MNO,BVC,2024-Q4,Capital,0.08,0.08,0.08,0.08,0.08,0.08,0.09,0.09,0.09,95000,false,14D3,0.25,2025,true,false
-Fondo Pensional PQR,COLCAP,2024-Q4,Mixto,0.10,0.10,0.08,0.08,0.08,0.08,0.08,0.08,0.08,58900,true,14A,0.27,2025,false,false
+instrumento,mercado,periodo,tipo_calificacion,f8,f9,f10,f11,f12,f13,f14,f15,f16,f17,f18,f19,monto,es_oficial
+COPEC,Bolsa de Santiago,2024-Q1,Dividendos,0.083,0.083,0.083,0.083,0.083,0.083,0.083,0.083,0.083,0.083,0.083,0.001,2500000,true
+SQM-B,Bolsa de Santiago,2024-Q1,Dividendos,0.083,0.083,0.083,0.083,0.083,0.083,0.083,0.083,0.083,0.083,0.083,0.001,3200000,true
+BANCO DE CHILE,Bolsa de Santiago,2024-Q2,Dividendos,0.083,0.083,0.083,0.083,0.083,0.083,0.083,0.083,0.083,0.083,0.083,0.001,1800000,true
+FALABELLA,Bolsa de Santiago,2024-Q2,Dividendos,0.083,0.083,0.083,0.083,0.083,0.083,0.083,0.083,0.083,0.083,0.083,0.001,2100000,true
+CMPC,Bolsa de Santiago,2024-Q3,Dividendos,0.083,0.083,0.083,0.083,0.083,0.083,0.083,0.083,0.083,0.083,0.083,0.001,1950000,true
+CENCOSUD,Bolsa de Santiago,2024-Q3,Dividendos,0.083,0.083,0.083,0.083,0.083,0.083,0.083,0.083,0.083,0.083,0.083,0.001,2300000,true
+BCP-2030,Bolsa de Santiago,2024-Q1,Intereses,0.100,0.100,0.100,0.100,0.100,0.100,0.100,0.100,0.100,0.050,0.025,0.025,5000000,true
+BCU-2028,Bolsa de Santiago,2024-Q2,Intereses,0.100,0.100,0.100,0.100,0.100,0.100,0.100,0.100,0.100,0.050,0.025,0.025,4500000,true
+BONO COPEC 2029,Bolsa de Santiago,2024-Q3,Intereses,0.090,0.090,0.090,0.090,0.090,0.090,0.090,0.090,0.090,0.090,0.050,0.050,3800000,true
+BONO ENEX 2027,Bolsa de Santiago,2024-Q4,Intereses,0.085,0.085,0.085,0.085,0.085,0.085,0.085,0.085,0.085,0.085,0.065,0.065,3200000,true
+FONDO MUTUO AFP CAPITAL,Bolsa Electrónica,2024-Q1,Ganancia Capital,0.050,0.050,0.100,0.100,0.100,0.100,0.100,0.100,0.100,0.100,0.050,0.050,6500000,false
+FONDO MUTUO AFP HABITAT,Bolsa Electrónica,2024-Q2,Ganancia Capital,0.050,0.050,0.100,0.100,0.100,0.100,0.100,0.100,0.100,0.100,0.050,0.050,7200000,false
+SANTANDER AM ACCIONES,Bolsa Electrónica,2024-Q3,Dividendos,0.083,0.083,0.083,0.083,0.083,0.083,0.083,0.083,0.083,0.083,0.083,0.001,4100000,true
+BANCHILE RENTA FIJA,Bolsa Electrónica,2024-Q4,Intereses,0.100,0.100,0.100,0.100,0.100,0.100,0.100,0.100,0.050,0.050,0.050,0.050,5800000,true
+ENTEL,Bolsa de Santiago,2024-Q4,Dividendos,0.083,0.083,0.083,0.083,0.083,0.083,0.083,0.083,0.083,0.083,0.083,0.001,2700000,true

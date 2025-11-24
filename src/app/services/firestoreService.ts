@@ -25,7 +25,9 @@ import {
   QueryDocumentSnapshot,
   deleteDoc,
   updateDoc,
-  increment
+  increment,
+  DocumentData,
+  QuerySnapshot
 } from 'firebase/firestore';
 import { db } from '../firebase/config';
 import { TaxQualification, ProcessedRecord, BulkUploadResult } from '../dashboard/components/types';
@@ -292,7 +294,7 @@ export async function getQualificationsByBrokerId(
     const needsPagination = maxResults <= 0 || maxResults > 1000;
     const batchSize = 1000; // Límite máximo de Firestore por consulta
     let results: TaxQualification[] = [];
-    let lastDoc: QueryDocumentSnapshot | null = null;
+    let lastDoc: QueryDocumentSnapshot<DocumentData> | null = null;
     let hasMore = true;
 
     while (hasMore) {
@@ -315,7 +317,7 @@ export async function getQualificationsByBrokerId(
           );
         }
 
-        const querySnapshot = await getDocs(q);
+        const querySnapshot: QuerySnapshot<DocumentData> = await getDocs(q);
         const batchResults = querySnapshot.docs.map(fromFirestoreFormat);
         results.push(...batchResults);
 
@@ -350,7 +352,7 @@ export async function getQualificationsByBrokerId(
             );
           }
 
-          const querySnapshot = await getDocs(q);
+          const querySnapshot: QuerySnapshot<DocumentData> = await getDocs(q);
           const batchResults = querySnapshot.docs.map(fromFirestoreFormat);
           results.push(...batchResults);
 
@@ -609,12 +611,13 @@ export async function deleteQualification(id: string): Promise<void> {
     // Obtener documento antes de borrar para actualizar stats
     const docSnap = await getDoc(docRef);
     if (docSnap.exists()) {
-      const data = docSnap.data();
-      const isValid = Object.values(data.factores || {}).reduce((a: any, b: any) => a + b, 0) <= 1;
+      const qualification = fromFirestoreFormat(docSnap);
+      const factorSum = Object.values(qualification.factores || {}).reduce((a: any, b: any) => a + b, 0);
+      const isValid = factorSum <= 1;
 
       await deleteDoc(docRef);
 
-      await updateUserStats(data.usuarioId, {
+      await updateUserStats(qualification.usuarioId, {
         qualifications: -1,
         validatedFactors: isValid ? -1 : 0
       });
@@ -770,65 +773,70 @@ export async function getRecentQualifications(
   }
 }
 
+/**
+ * Obtiene las estadísticas del corredor
+ * IMPORTANTE: Calcula desde las calificaciones reales para garantizar sincronización automática
+ * Esto evita problemas de desincronización cuando se eliminan datos directamente desde Firebase Console
+ */
 export async function getBrokerStats(brokerId: string): Promise<BrokerStats> {
   try {
-    // Intentar obtener estadísticas pre-calculadas
-    const statsRef = doc(db, USER_STATS_COLLECTION, brokerId);
-    const statsSnap = await getDoc(statsRef);
-
-    if (statsSnap.exists()) {
-      const data = statsSnap.data();
-      const total = data.totalQualifications || 0;
-      const validated = data.validatedFactors || 0;
-      const reports = data.reportsGenerated || 0;
-
+    if (!brokerId) {
+      console.warn('[getBrokerStats] brokerId vacío');
       return {
-        totalQualifications: total,
-        validatedFactors: validated,
-        reportsGenerated: reports,
-        successRate: total > 0 ? parseFloat(((validated / total) * 100).toFixed(1)) : 100
+        totalQualifications: 0,
+        validatedFactors: 0,
+        reportsGenerated: 0,
+        successRate: 0
       };
     }
 
-    // Fallback: Calcular si no existen (primera vez)
-    console.log('Generando estadísticas iniciales...');
+    console.log(`[getBrokerStats] Calculando stats desde calificaciones reales...`);
+
+    // Obtener TODAS las calificaciones del usuario
     const q = query(
       collection(db, COLLECTION_NAME),
       where('usuarioId', '==', brokerId)
     );
+    const snapshot = await getDocs(q);
 
-    const querySnapshot = await getDocs(q);
-    const qualifications = querySnapshot.docs.map(fromFirestoreFormat);
-
-    const totalQualifications = qualifications.length;
+    let totalQualifications = 0;
     let validatedFactors = 0;
-    qualifications.forEach(qual => {
-      const sum = Object.values(qual.factores).reduce((acc, val) => acc + val, 0);
-      if (sum <= 1) validatedFactors++;
+
+    snapshot.docs.forEach(doc => {
+      const data = doc.data();
+      totalQualifications++;
+
+      // Verificar si es válido (suma de factores <= 1)
+      const factorSum = Object.values(data.factores || {}).reduce((a: any, b: any) => a + b, 0) as number;
+      if (factorSum <= 1) {
+        validatedFactors++;
+      }
     });
 
-    const reportsGenerated = Math.floor(totalQualifications / 10); // Simulado inicial
-
-    // Guardar cálculo inicial
-    await setDoc(statsRef, {
-      totalQualifications,
-      validatedFactors,
-      reportsGenerated,
-      fechaUltimaActualizacion: Timestamp.now()
-    });
+    // Obtener reportes generados desde el documento de stats (si existe)
+    let reportsGenerated = 0;
+    try {
+      const statsRef = doc(db, USER_STATS_COLLECTION, brokerId);
+      const statsSnap = await getDoc(statsRef);
+      if (statsSnap.exists()) {
+        reportsGenerated = statsSnap.data().reportsGenerated || 0;
+      }
+    } catch (error) {
+      console.warn('[getBrokerStats] No se pudo leer reportsGenerated');
+    }
 
     const successRate = totalQualifications > 0
-      ? (validatedFactors / totalQualifications) * 100
+      ? parseFloat(((validatedFactors / totalQualifications) * 100).toFixed(1))
       : 100;
 
     return {
       totalQualifications,
       validatedFactors,
       reportsGenerated,
-      successRate: parseFloat(successRate.toFixed(1))
+      successRate
     };
   } catch (error) {
-    console.error('Error obteniendo estadísticas:', error);
+    console.error('[getBrokerStats] Error obteniendo estadísticas:', error);
     return {
       totalQualifications: 0,
       validatedFactors: 0,

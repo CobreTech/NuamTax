@@ -205,4 +205,3 @@ export interface BulkUploadResultWithContributors extends BulkUploadResult {
   contributorsCreated: number;    // Contribuyentes nuevos creados
   contributorMatches: ContributorMatch[];  // Detalle completo de contribuyentes
 }
-

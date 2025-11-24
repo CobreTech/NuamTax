@@ -37,7 +37,7 @@ export type AuditResource =
  */
 export interface AuditLog {
   timestamp: Date;
-  userId: string;
+  usuarioId: string; // Changed from userId to match Firestore rules
   userEmail: string;
   userName: string;
   action: AuditAction;
@@ -96,7 +96,7 @@ export async function logAuditEvent(log: AuditLog): Promise<string> {
 export async function logLogin(userId: string, userEmail: string, userName: string) {
   return logAuditEvent({
     timestamp: new Date(),
-    userId,
+    usuarioId: userId,
     userEmail,
     userName,
     action: 'LOGIN',
@@ -111,7 +111,7 @@ export async function logLogin(userId: string, userEmail: string, userName: stri
 export async function logLogout(userId: string, userEmail: string, userName: string) {
   return logAuditEvent({
     timestamp: new Date(),
-    userId,
+    usuarioId: userId,
     userEmail,
     userName,
     action: 'LOGOUT',
@@ -132,7 +132,7 @@ export async function logUserCreated(
 ) {
   return logAuditEvent({
     timestamp: new Date(),
-    userId: adminId,
+    usuarioId: adminId,
     userEmail: adminEmail,
     userName: adminName,
     action: 'CREATE',
@@ -158,7 +158,7 @@ export async function logUserUpdated(
 ) {
   return logAuditEvent({
     timestamp: new Date(),
-    userId: adminId,
+    usuarioId: adminId,
     userEmail: adminEmail,
     userName: adminName,
     action: 'UPDATE',
@@ -185,7 +185,7 @@ export async function logUserToggleActive(
 ) {
   return logAuditEvent({
     timestamp: new Date(),
-    userId: adminId,
+    usuarioId: adminId,
     userEmail: adminEmail,
     userName: adminName,
     action: 'UPDATE',
@@ -210,7 +210,7 @@ export async function logPasswordReset(
 ) {
   return logAuditEvent({
     timestamp: new Date(),
-    userId: adminId,
+    usuarioId: adminId,
     userEmail: adminEmail,
     userName: adminName,
     action: 'PASSWORD_RESET',
@@ -233,7 +233,7 @@ export async function logBulkUpload(
 ) {
   return logAuditEvent({
     timestamp: new Date(),
-    userId,
+    usuarioId: userId,
     userEmail,
     userName,
     action: 'UPLOAD',
@@ -259,7 +259,7 @@ export async function logQualificationCreated(
 ) {
   return logAuditEvent({
     timestamp: new Date(),
-    userId,
+    usuarioId: userId,
     userEmail,
     userName,
     action: 'CREATE',
@@ -285,7 +285,7 @@ export async function logQualificationUpdated(
 ) {
   return logAuditEvent({
     timestamp: new Date(),
-    userId,
+    usuarioId: userId,
     userEmail,
     userName,
     action: 'UPDATE',
@@ -311,7 +311,7 @@ export async function logQualificationDeleted(
 ) {
   return logAuditEvent({
     timestamp: new Date(),
-    userId,
+    usuarioId: userId,
     userEmail,
     userName,
     action: 'DELETE',
@@ -336,7 +336,7 @@ export async function logDataExport(
 ) {
   return logAuditEvent({
     timestamp: new Date(),
-    userId,
+    usuarioId: userId,
     userEmail,
     userName,
     action: 'EXPORT',
@@ -369,27 +369,31 @@ export async function getRecentActivity(
       return [];
     }
 
+    console.log('[getRecentActivity] Fetching activity for user:', userId);
     let querySnapshot;
 
     try {
       // Intentar consulta con índice compuesto
       const q = query(
         collection(db, 'auditLogs'),
-        where('userId', '==', userId),
+        where('usuarioId', '==', userId), // Changed to usuarioId
         orderBy('timestamp', 'desc'),
         limit(limitCount)
       );
       querySnapshot = await getDocs(q);
+      console.log('[getRecentActivity] Main query success, docs:', querySnapshot.size);
     } catch (error: any) {
+      console.warn('[getRecentActivity] Main query failed:', error.code, error.message);
       // Si falla por falta de índice, intentar sin orderBy y ordenar manualmente
       if (error?.code === 'failed-precondition' || error?.message?.includes('index')) {
         console.warn('[getRecentActivity] Índice no disponible, consultando sin orderBy...', error);
         const q = query(
           collection(db, 'auditLogs'),
-          where('userId', '==', userId),
+          where('usuarioId', '==', userId), // Changed to usuarioId
           limit(300) // Aumentar límite para asegurar que los logs recientes estén incluidos (sin índice no podemos garantizar orden)
         );
         querySnapshot = await getDocs(q);
+        console.log('[getRecentActivity] Fallback query success, docs:', querySnapshot.size);
       } else {
         throw error;
       }
@@ -399,7 +403,7 @@ export async function getRecentActivity(
 
     const docsWithTimestamps = querySnapshot.docs.map(doc => {
       const data = doc.data();
-      let timestamp = new Date();
+      let timestamp: Date | null = null;
 
       try {
         if (data.timestamp?.toDate) {
@@ -421,11 +425,14 @@ export async function getRecentActivity(
       };
     });
 
+    // Filtrar logs sin timestamp válido
+    const validDocs = docsWithTimestamps.filter(d => d.timestamp !== null) as { doc: any, timestamp: Date, data: any }[];
+
     // Ordenar por timestamp descendente (si no se usó orderBy en la consulta)
-    docsWithTimestamps.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
+    validDocs.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
 
     // Tomar solo los primeros limitCount
-    docsWithTimestamps.slice(0, limitCount).forEach(({ doc, timestamp, data }) => {
+    validDocs.slice(0, limitCount).forEach(({ doc, timestamp, data }) => {
       const now = new Date();
       const diffMs = now.getTime() - timestamp.getTime();
       const diffMins = Math.floor(diffMs / 60000);
