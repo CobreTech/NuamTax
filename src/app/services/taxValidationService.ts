@@ -15,26 +15,38 @@ import { TaxFactors, TaxQualification, ValidationError } from '../dashboard/comp
  * iguales a 1.00 (100%) como válidas.
  */
 export function validateFactorsSum(factors: TaxFactors): { isValid: boolean; sum: number; error?: string } {
-  const sum =
-    (factors.factor8 || 0) +
-    (factors.factor9 || 0) +
-    (factors.factor10 || 0) +
-    (factors.factor11 || 0) +
-    (factors.factor12 || 0) +
-    (factors.factor13 || 0) +
-    (factors.factor14 || 0) +
-    (factors.factor15 || 0) +
-    (factors.factor16 || 0) +
-    (factors.factor17 || 0) +
-    (factors.factor18 || 0) +
-    (factors.factor19 || 0);
+  // Helper para asegurar que el valor sea un número
+  const getFactor = (val: any): number => {
+    if (typeof val === 'number' && !isNaN(val)) return val;
+    if (typeof val === 'string') {
+      const parsed = parseFloat(val.replace(',', '.')); // Soportar coma decimal
+      return isNaN(parsed) ? 0 : parsed;
+    }
+    return 0;
+  };
 
-  const isValid = sum <= 1;
+  const sum =
+    getFactor(factors.factor8) +
+    getFactor(factors.factor9) +
+    getFactor(factors.factor10) +
+    getFactor(factors.factor11) +
+    getFactor(factors.factor12) +
+    getFactor(factors.factor13) +
+    getFactor(factors.factor14) +
+    getFactor(factors.factor15) +
+    getFactor(factors.factor16) +
+    getFactor(factors.factor17) +
+    getFactor(factors.factor18) +
+    getFactor(factors.factor19);
+
+  // Redondear a 4 decimales para evitar errores de punto flotante
+  const roundedSum = Math.round(sum * 10000) / 10000;
+  const isValid = roundedSum <= 1.0001; // Pequeña tolerancia
 
   return {
     isValid,
-    sum,
-    error: isValid ? undefined : `La suma de los factores (${sum.toFixed(4)}) supera el límite permitido de 1 (100%)`
+    sum: roundedSum,
+    error: isValid ? undefined : `La suma de los factores (${roundedSum.toFixed(4)}) supera el límite permitido de 1 (100%)`
   };
 }
 
@@ -194,6 +206,20 @@ export function sanitizeData(data: any): Partial<TaxQualification> {
       moneda: typeof data.monto?.moneda === 'string' ? data.monto.moneda.trim().toUpperCase() : 'CLP',
     },
     esNoInscrita: data.esNoInscrita !== undefined ? data.esNoInscrita : false,
+    factores: data.factores ? {
+      factor8: typeof data.factores.factor8 === 'number' ? data.factores.factor8 : parseFloat(data.factores.factor8) || 0,
+      factor9: typeof data.factores.factor9 === 'number' ? data.factores.factor9 : parseFloat(data.factores.factor9) || 0,
+      factor10: typeof data.factores.factor10 === 'number' ? data.factores.factor10 : parseFloat(data.factores.factor10) || 0,
+      factor11: typeof data.factores.factor11 === 'number' ? data.factores.factor11 : parseFloat(data.factores.factor11) || 0,
+      factor12: typeof data.factores.factor12 === 'number' ? data.factores.factor12 : parseFloat(data.factores.factor12) || 0,
+      factor13: typeof data.factores.factor13 === 'number' ? data.factores.factor13 : parseFloat(data.factores.factor13) || 0,
+      factor14: typeof data.factores.factor14 === 'number' ? data.factores.factor14 : parseFloat(data.factores.factor14) || 0,
+      factor15: typeof data.factores.factor15 === 'number' ? data.factores.factor15 : parseFloat(data.factores.factor15) || 0,
+      factor16: typeof data.factores.factor16 === 'number' ? data.factores.factor16 : parseFloat(data.factores.factor16) || 0,
+      factor17: typeof data.factores.factor17 === 'number' ? data.factores.factor17 : parseFloat(data.factores.factor17) || 0,
+      factor18: typeof data.factores.factor18 === 'number' ? data.factores.factor18 : parseFloat(data.factores.factor18) || 0,
+      factor19: typeof data.factores.factor19 === 'number' ? data.factores.factor19 : parseFloat(data.factores.factor19) || 0,
+    } : undefined,
   };
 }
 

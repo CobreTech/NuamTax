@@ -271,6 +271,9 @@ export async function getContributorsByUser(userId: string, filters?: Contributo
         } catch (error: any) {
             // Si falla por falta de índice, intentar sin ordenamiento y ordenar en cliente
             if (error.code === 'failed-precondition' || error.message?.includes('index')) {
+                console.warn('⚠️ [getContributorsByUser] Índice faltante. Para crearlo, usa este link:');
+                console.warn(error.message); // El mensaje contiene el link directo
+
                 console.warn('Index missing, falling back to client-side sorting');
                 const querySnapshot = await getDocs(q);
                 let contributors = querySnapshot.docs.map(doc => fromFirestore(doc));

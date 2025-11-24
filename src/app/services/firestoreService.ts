@@ -334,7 +334,10 @@ export async function getQualificationsByBrokerId(
       } catch (error: any) {
         // Si falla por falta de índice, intentar sin orderBy
         if (error?.code === 'failed-precondition') {
-          console.warn('[getQualificationsByBrokerId] Índice no disponible, consultando sin orderBy...', error);
+          console.warn('⚠️ [getQualificationsByBrokerId] Índice faltante. Para crearlo, usa este link:');
+          console.warn(error.message); // El mensaje contiene el link directo
+
+          console.warn('[getQualificationsByBrokerId] Consultando sin orderBy como fallback...', error);
           // Intentar sin orderBy
           let q;
           if (lastDoc) {

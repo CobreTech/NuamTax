@@ -17,6 +17,9 @@ export interface TaxFactors {
   factor14?: number;  // C14: Exentas IGC Art. 11 Ley 18.401 (0-1)
   factor15?: number;  // C15: Exentos IGC y/o IA (0-1)
   factor16?: number;  // C16: Ingresos no constitutivos de renta (0-1)
+  factor17?: number;  // C17: ISFUT (0-1)
+  factor18?: number;  // C18: ISIF (0-1)
+  factor19?: number;  // C19: Otros (0-1)
 }
 
 // Define la configuración para el cálculo automático de créditos tributarios (C17-C32)

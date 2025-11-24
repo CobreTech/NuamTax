@@ -16,37 +16,35 @@ interface ConfirmDialogProps {
   variant?: 'danger' | 'warning' | 'info'
 }
 
-export default function ConfirmDialog({
-  isOpen,
+// Componente interno que maneja la lógica y el renderizado dentro del Portal
+function ConfirmDialogContent({
   title,
   message,
-  confirmText = 'Confirmar',
-  cancelText = 'Cancelar',
+  confirmText,
+  cancelText,
   onConfirm,
   onCancel,
-  variant = 'danger'
-}: ConfirmDialogProps) {
+  variant
+}: Omit<ConfirmDialogProps, 'isOpen'>) {
   const dialogRef = useRef<HTMLDivElement>(null)
   const cancelButtonRef = useRef<HTMLButtonElement>(null)
 
   // Focus trap para mantener el foco dentro del modal
-  useFocusTrap(dialogRef, isOpen)
+  useFocusTrap(dialogRef as React.RefObject<HTMLElement>, true)
 
   // Manejar tecla Escape para cerrar
   useKeyboardNavigation(
     () => onCancel(),
     undefined,
-    isOpen
+    true
   )
 
-  // Enfocar el botón de cancelar al abrir
+  // Enfocar el botón de cancelar al montar
   useEffect(() => {
-    if (isOpen && cancelButtonRef.current) {
+    if (cancelButtonRef.current) {
       cancelButtonRef.current.focus()
     }
-  }, [isOpen])
-
-  if (!isOpen) return null
+  }, [])
 
   // Colores según la variante
   const variantStyles = {
@@ -73,56 +71,63 @@ export default function ConfirmDialog({
     }
   }
 
-  const styles = variantStyles[variant]
+  const styles = variantStyles[variant || 'danger']
   const Icon = styles.icon
 
   return (
-    <Portal>
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="confirm-dialog-title"
+      aria-describedby="confirm-dialog-description"
+    >
       <div
-        className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="confirm-dialog-title"
-        aria-describedby="confirm-dialog-description"
+        ref={dialogRef}
+        className="backdrop-blur-xl bg-slate-900/95 border border-white/20 rounded-2xl p-6 lg:p-8 max-w-md w-full shadow-2xl"
       >
-        <div
-          ref={dialogRef}
-          className="backdrop-blur-xl bg-slate-900/95 border border-white/20 rounded-2xl p-6 lg:p-8 max-w-md w-full shadow-2xl"
-        >
-          <div className="flex items-start gap-4 mb-6">
-            <div className={`p-3 ${styles.bgColor} ${styles.borderColor} border rounded-xl`} aria-hidden="true">
-              <Icon className={`w-6 h-6 ${styles.iconColor}`} />
-            </div>
-            <div className="flex-1">
-              <h2 id="confirm-dialog-title" className="text-xl lg:text-2xl font-bold text-white mb-2">
-                {title}
-              </h2>
-              <p id="confirm-dialog-description" className="text-sm lg:text-base text-gray-300">
-                {message}
-              </p>
-            </div>
+        <div className="flex items-start gap-4 mb-6">
+          <div className={`p-3 ${styles.bgColor} ${styles.borderColor} border rounded-xl`} aria-hidden="true">
+            <Icon className={`w-6 h-6 ${styles.iconColor}`} />
           </div>
-
-          <div className="flex flex-col sm:flex-row gap-3 sm:justify-end">
-            <button
-              ref={cancelButtonRef}
-              onClick={onCancel}
-              className="px-4 py-2 bg-white/10 border border-white/20 rounded-xl hover:bg-white/20 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-offset-2 focus:ring-offset-slate-900 transition-colors text-sm font-medium text-white"
-              aria-label={cancelText}
-            >
-              {cancelText}
-            </button>
-            <button
-              onClick={onConfirm}
-              className={`px-4 py-2 ${styles.buttonColor} rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-offset-2 focus:ring-offset-slate-900 transition-colors text-sm font-semibold text-white`}
-              aria-label={confirmText}
-              autoFocus={variant === 'danger'}
-            >
-              {confirmText}
-            </button>
+          <div className="flex-1">
+            <h2 id="confirm-dialog-title" className="text-xl lg:text-2xl font-bold text-white mb-2">
+              {title}
+            </h2>
+            <p id="confirm-dialog-description" className="text-sm lg:text-base text-gray-300">
+              {message}
+            </p>
           </div>
         </div>
+
+        <div className="flex flex-col sm:flex-row gap-3 sm:justify-end">
+          <button
+            ref={cancelButtonRef}
+            onClick={onCancel}
+            className="px-4 py-2 bg-white/10 border border-white/20 rounded-xl hover:bg-white/20 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-offset-2 focus:ring-offset-slate-900 transition-colors text-sm font-medium text-white"
+            aria-label={cancelText}
+          >
+            {cancelText}
+          </button>
+          <button
+            onClick={onConfirm}
+            className={`px-4 py-2 ${styles.buttonColor} rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-offset-2 focus:ring-offset-slate-900 transition-colors text-sm font-semibold text-white`}
+            aria-label={confirmText}
+          >
+            {confirmText}
+          </button>
+        </div>
       </div>
+    </div>
+  )
+}
+
+export default function ConfirmDialog(props: ConfirmDialogProps) {
+  if (!props.isOpen) return null
+
+  return (
+    <Portal>
+      <ConfirmDialogContent {...props} />
     </Portal>
   )
 }
